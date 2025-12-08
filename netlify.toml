@@ -1,7 +1,6 @@
 [build]
   command = "npm ci --legacy-peer-deps"
   functions = "netlify/functions"
-  publish = "."
 
 [env]
   SUPABASE_URL = "https://xpcxuonqffewtsmwlato.supabase.co"
