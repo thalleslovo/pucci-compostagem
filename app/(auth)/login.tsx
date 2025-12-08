@@ -1,5 +1,3 @@
-// app/(auth)/login.tsx
-
 import React, { useState, useEffect } from 'react';
 import {
   View,
@@ -13,6 +11,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { TextInput } from '@/components/TextInput';
 import { Button } from '@/components/Button';
 import { authService } from '@/services/auth';
@@ -93,6 +92,7 @@ export default function LoginScreen() {
     return true;
   };
 
+  // ===== FUNÇÃO CORRIGIDA: Salvar Operador =====
   const handleLogin = async () => {
     if (!validatePIN(pin)) return;
 
@@ -100,12 +100,24 @@ export default function LoginScreen() {
     try {
       const isValid = await authService.validatePIN(pin);
       if (isValid) {
+        // ✅ SALVAR OPERADOR NO ASYNCSTORAGE
+        const operador = {
+          id: 'operador-001',
+          nome: 'Pucci Ambiental',
+          pin: pin,
+          logadoEm: new Date().toISOString(),
+        };
+
+        await AsyncStorage.setItem('operadorLogado', JSON.stringify(operador));
+        console.log('✅ Operador salvo no AsyncStorage:', operador.nome);
+
         router.replace('/(app)');
       } else {
         Alert.alert('Erro', 'PIN incorreto');
         setPin('');
       }
     } catch (error) {
+      console.error('❌ Erro ao fazer login:', error);
       Alert.alert('Erro', 'Erro ao fazer login');
     } finally {
       setLoading(false);

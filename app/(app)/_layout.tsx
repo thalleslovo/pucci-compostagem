@@ -86,6 +86,15 @@ export default function AppLayout() {
         }}
       />
 
+      {/* Tela Relatório de Leiras */}
+      <Stack.Screen
+        name="relatorios"
+        options={{
+          title: 'Relatório de Leiras',
+          headerBackTitle: 'Voltar',
+        }}
+      />
+
       {/* Tela Detalhes da Leira */}
       <Stack.Screen
         name="detalhes-leira"
@@ -113,6 +122,7 @@ export default function AppLayout() {
         }}
       />
 
+    
       {/* Tela Registro de Chuva */}
       <Stack.Screen
         name="registro-chuva"
@@ -121,15 +131,7 @@ export default function AppLayout() {
           headerBackTitle: 'Voltar',
         }}
       />
-
-      {/* Tela Relatórios */}
-      <Stack.Screen
-        name="relatorios"
-        options={{
-          title: 'Relatórios',
-          headerBackTitle: 'Voltar',
-        }}
-      />
+      
     </Stack>
   );
 }

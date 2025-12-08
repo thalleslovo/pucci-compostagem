@@ -1,0 +1,8 @@
+[build]
+  command = "npm ci --legacy-peer-deps"
+  functions = "netlify/functions"
+
+[env]
+  SUPABASE_URL = "https://xpcxuonqffewtsmwlato.supabase.co"
+  SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MzQ1NzMsImV4cCI6MjA4MDUxMDU3M30.eM66pT_Gpa0f4vtjVRIYIReVTTBVdDyoDzt1PpoxmJk"
+  SUPABASE_SERVICE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"

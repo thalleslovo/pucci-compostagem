@@ -1,5 +1,3 @@
-// app/(app)/index.tsx
-
 import React, { useState } from 'react';
 import {
   View,
@@ -11,8 +9,9 @@ import {
   RefreshControl,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { authService } from '@/services/auth';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PALETTE = {
   verdePrimario: '#5D7261',
@@ -36,6 +35,121 @@ export default function DashboardScreen() {
   const router = useRouter();
   const [refreshing, setRefreshing] = useState(false);
 
+  // ===== STATES DE LEIRAS =====
+  const [totalLeiras, setTotalLeiras] = useState(0);
+  const [leirasProntas, setLeirasProntas] = useState(0);
+  const [leirasEmProducao, setLeirasEmProducao] = useState(0);
+  const [leirasFormadas, setLeirasFormadas] = useState(0);
+  const [leirasSecando, setLeirasSecando] = useState(0);
+  const [leirasCompostando, setLeirasCompostando] = useState(0);
+  const [leirasMaturando, setLeirasMaturando] = useState(0);
+
+  // ===== FUNÇÃO DE CARREGAMENTO =====
+  const carregarTotalLeiras = async () => {
+    try {
+      console.log('🔄 Carregando estatísticas do dashboard...');
+
+      const leirasData = await AsyncStorage.getItem('leirasFormadas');
+      if (leirasData) {
+        const leiras = JSON.parse(leirasData);
+        console.log(`📊 Total de leiras encontradas: ${leiras.length}`);
+
+        // Calcular estatísticas por status
+        const formadas = leiras.filter((l: any) => l.status === 'formada').length;
+        const secando = leiras.filter((l: any) => l.status === 'secando').length;
+        const compostando = leiras.filter((l: any) => l.status === 'compostando').length;
+        const maturando = leiras.filter((l: any) => l.status === 'maturando').length;
+        const prontas = leiras.filter((l: any) => l.status === 'pronta').length;
+
+        // Leiras em produção (formação até maturação)
+        const emProducao = formadas + secando + compostando + maturando;
+
+        // Atualizar todos os estados
+        setTotalLeiras(leiras.length);
+        setLeirasProntas(prontas);
+        setLeirasEmProducao(emProducao);
+        setLeirasFormadas(formadas);
+        setLeirasSecando(secando);
+        setLeirasCompostando(compostando);
+        setLeirasMaturando(maturando);
+
+        console.log('✅ Estatísticas carregadas:');
+        console.log(`   📊 Total: ${leiras.length}`);
+        console.log(`   ✅ Prontas para Venda: ${prontas}`);
+        console.log(`   🔄 Em Produção: ${emProducao}`);
+        console.log(`      - Formadas: ${formadas}`);
+        console.log(`      - Secando: ${secando}`);
+        console.log(`      - Compostando: ${compostando}`);
+        console.log(`      - Maturando: ${maturando}`);
+      } else {
+        console.log('📭 Nenhuma leira encontrada no AsyncStorage');
+        // Reset todos os valores
+        setTotalLeiras(0);
+        setLeirasProntas(0);
+        setLeirasEmProducao(0);
+        setLeirasFormadas(0);
+        setLeirasSecando(0);
+        setLeirasCompostando(0);
+        setLeirasMaturando(0);
+      }
+    } catch (error) {
+      console.error('❌ Erro ao carregar leiras:', error);
+      // Reset em caso de erro
+      setTotalLeiras(0);
+      setLeirasProntas(0);
+      setLeirasEmProducao(0);
+      setLeirasFormadas(0);
+      setLeirasSecando(0);
+      setLeirasCompostando(0);
+      setLeirasMaturando(0);
+    }
+  };
+
+  // ===== CARREGA DADOS AO FOCAR NA TELA =====
+  useFocusEffect(React.useCallback(() => {
+    carregarTotalLeiras();
+  }, []));
+
+  // ===== FUNÇÃO DE RESET =====
+  const handleReset = () => {
+    Alert.alert(
+      '⚠️ Resetar App',
+      'Isso vai deletar TODOS os dados locais. Tem certeza?',
+      [
+        {
+          text: 'Cancelar',
+          onPress: () => {},
+          style: 'cancel',
+        },
+        {
+          text: 'Deletar Tudo',
+          onPress: async () => {
+            try {
+              console.log('🗑️ Limpando dados...');
+
+              await AsyncStorage.removeItem('materiaisRegistrados');
+              await AsyncStorage.removeItem('leirasFormadas');
+              await AsyncStorage.removeItem('leirasMonitoramento');
+              await AsyncStorage.removeItem('leirasClimatica');
+              await AsyncStorage.removeItem('filaSync');
+
+              console.log('✅ Dados deletados com sucesso!');
+              Alert.alert('Sucesso', 'App resetado! Reinicie o app para ver as mudanças.');
+
+              // Recarregar a tela
+              carregarTotalLeiras();
+            } catch (error) {
+              console.error('❌ Erro ao resetar:', error);
+              Alert.alert('Erro', 'Falha ao resetar dados');
+            }
+          },
+          style: 'destructive',
+        },
+      ]
+    );
+  };
+
+  // ===== FUNÇÃO DE LOGOUT =====
   const handleLogout = () => {
     Alert.alert(
       'Desconectar',
@@ -62,8 +176,10 @@ export default function DashboardScreen() {
     );
   };
 
+  // ===== FUNÇÃO DE REFRESH =====
   const handleRefresh = () => {
     setRefreshing(true);
+    carregarTotalLeiras();
     setTimeout(() => {
       setRefreshing(false);
     }, 1500);
@@ -84,7 +200,7 @@ export default function DashboardScreen() {
           />
         }
       >
-        {/* Header */}
+        {/* ===== HEADER ===== */}
         <View style={styles.header}>
           <View style={styles.headerContent}>
             <Text style={styles.greeting}>Bem-vindo 👋</Text>
@@ -95,111 +211,75 @@ export default function DashboardScreen() {
           </TouchableOpacity>
         </View>
 
-        {/* Stats Cards */}
+        {/* ===== STATS CARDS ===== */}
         <View style={styles.statsContainer}>
           <StatCard
-            icon="🌾"
-            title="Plantações"
-            value="8"
+            icon="🌱"
+            title="Total de Leiras"
+            value={totalLeiras.toString()}
             color={PALETTE.verdePrimario}
           />
           <StatCard
-            icon="📊"
-            title="Colheitas"
-            value="12"
-            color={PALETTE.terracota}
+            icon="✅"
+            title="Leiras Prontas"
+            value={leirasProntas.toString()}
+            color={PALETTE.sucesso}
           />
           <StatCard
-            icon="🌍"
-            title="Área Total"
-            value="45 ha"
-            color={PALETTE.sucesso}
+            icon="🔄"
+            title="Em Produção"
+            value={leirasEmProducao.toString()}
+            color={PALETTE.warning}
           />
         </View>
 
-        {/* Quick Actions */}
+        {/* ===== QUICK ACTIONS ===== */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ações Rápidas</Text>
           <View style={styles.actionsGrid}>
             <ActionCard
+              icon="🚚"
+              title="Entrada de Material"
+              onPress={() => router.push('/(app)/entrada-material')}
+            />
+            <ActionCard
               icon="🌱"
-              title="Nova Plantação"
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
+              title="Nova Leira"
+              onPress={() => router.push('/(app)/nova-leira')}
             />
             <ActionCard
-              icon="📋"
-              title="Registrar Colheita"
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
+              icon="📊"
+              title="Relatório"
+              onPress={() => router.push('/(app)/relatorios')}
             />
             <ActionCard
-              icon="📈"
-              title="Relatórios"
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
-            />
-            <ActionCard
-              icon="⚙️"
-              title="Configurações"
-              onPress={() => Alert.alert('Em breve', 'Funcionalidade em desenvolvimento')}
+              icon="🌧️"
+              title="Monitoramento de Chuva"
+              onPress={() => router.push('/(app)/monitorar-clima')}
             />
           </View>
         </View>
 
-        {/* Recent Activities */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Atividades Recentes</Text>
-          <ActivityItem
-            icon="🌾"
-            title="Plantação de Milho"
-            description="Quadra 3 - 5 hectares"
-            date="Hoje, 14:30"
-            status="ativa"
-          />
-          <ActivityItem
-            icon="🚜"
-            title="Colheita Concluída"
-            description="Soja - Quadra 1"
-            date="Ontem, 10:15"
-            status="concluida"
-          />
-          <ActivityItem
-            icon="💧"
-            title="Irrigação Ativada"
-            description="Sistema automatizado"
-            date="2 dias atrás"
-            status="ativa"
-          />
+        {/* ===== BOTÕES PERIGOSOS (RESET + LOGOUT) ===== */}
+        <View style={styles.dangerSection}>
+          <TouchableOpacity
+            style={styles.resetButton}
+            onPress={handleReset}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.resetButtonText}>🗑️ Resetar App</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.logoutButtonFull}
+            onPress={handleLogout}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.logoutButtonText}>🚪 Sair</Text>
+          </TouchableOpacity>
         </View>
 
-        {/* Info Cards */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Informações do Solo</Text>
-
-          <InfoCard
-            title="Temperatura do Solo"
-            value="28°C"
-            subtitle="Ótima para plantação"
-            icon="🌡️"
-            color={PALETTE.sucesso}
-          />
-
-          <InfoCard
-            title="Umidade do Solo"
-            value="65%"
-            subtitle="Nível adequado"
-            icon="💧"
-            color={PALETTE.verdePrimario}
-          />
-
-          <InfoCard
-            title="pH do Solo"
-            value="6.5"
-            subtitle="Neutro"
-            icon="⚗️"
-            color={PALETTE.terracota}
-          />
-        </View>
-
-        {/* Footer Info */}
+        {/* ===== FOOTER INFO ===== */}
         <View style={styles.footerInfo}>
           <Text style={styles.footerTitle}>Última Sincronização</Text>
           <Text style={styles.footerTime}>Hoje, 15:45</Text>
@@ -210,7 +290,7 @@ export default function DashboardScreen() {
   );
 }
 
-// Componente: Stat Card
+// ===== COMPONENTE: STAT CARD =====
 interface StatCardProps {
   icon: string;
   title: string;
@@ -230,7 +310,7 @@ function StatCard({ icon, title, value, color }: StatCardProps) {
   );
 }
 
-// Componente: Action Card
+// ===== COMPONENTE: ACTION CARD =====
 interface ActionCardProps {
   icon: string;
   title: string;
@@ -252,7 +332,7 @@ function ActionCard({ icon, title, onPress }: ActionCardProps) {
   );
 }
 
-// Componente: Activity Item
+// ===== COMPONENTE: ACTIVITY ITEM =====
 interface ActivityItemProps {
   icon: string;
   title: string;
@@ -316,7 +396,7 @@ function ActivityItem({
   );
 }
 
-// Componente: Info Card
+// ===== COMPONENTE: INFO CARD =====
 interface InfoCardProps {
   title: string;
   value: string;
@@ -340,6 +420,7 @@ function InfoCard({ title, value, subtitle, icon, color }: InfoCardProps) {
   );
 }
 
+// ===== ESTILOS =====
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -566,6 +647,49 @@ const styles = StyleSheet.create({
   infoValue: {
     fontSize: 26,
     fontWeight: '800',
+  },
+
+  // ===== DANGER SECTION (RESET + LOGOUT) =====
+  dangerSection: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+    gap: 10,
+  },
+  resetButton: {
+    backgroundColor: '#FF6B6B',
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+  resetButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PALETTE.branco,
+  },
+  logoutButtonFull: {
+    backgroundColor: PALETTE.erro,
+    paddingVertical: 14,
+    paddingHorizontal: 16,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 3,
+  },
+   logoutButtonText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PALETTE.branco,
   },
 
   // ===== FOOTER =====
