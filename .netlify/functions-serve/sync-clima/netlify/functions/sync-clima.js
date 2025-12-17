@@ -2280,7 +2280,7 @@ var require_version = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.version = void 0;
-    exports2.version = "2.86.2";
+    exports2.version = "2.87.1";
   }
 });
 
@@ -3186,7 +3186,9 @@ var require_RealtimeChannel = __commonJS({
           this._rejoin(timeout);
           this.joinPush.receive("ok", async ({ postgres_changes: postgres_changes2 }) => {
             var _a2;
-            this.socket.setAuth();
+            if (!this.socket._isManualToken()) {
+              this.socket.setAuth();
+            }
             if (postgres_changes2 === void 0) {
               callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES2.SUBSCRIBED);
               return;
@@ -3198,7 +3200,7 @@ var require_RealtimeChannel = __commonJS({
                 const clientPostgresBinding = clientPostgresBindings[i];
                 const { filter: { event, schema, table, filter } } = clientPostgresBinding;
                 const serverPostgresFilter = postgres_changes2 && postgres_changes2[i];
-                if (serverPostgresFilter && serverPostgresFilter.event === event && serverPostgresFilter.schema === schema && serverPostgresFilter.table === table && serverPostgresFilter.filter === filter) {
+                if (serverPostgresFilter && serverPostgresFilter.event === event && _RealtimeChannel.isFilterValueEqual(serverPostgresFilter.schema, schema) && _RealtimeChannel.isFilterValueEqual(serverPostgresFilter.table, table) && _RealtimeChannel.isFilterValueEqual(serverPostgresFilter.filter, filter)) {
                   newPostgresBindings.push(Object.assign(Object.assign({}, clientPostgresBinding), { id: serverPostgresFilter.id }));
                 } else {
                   this.unsubscribe();
@@ -3254,7 +3256,7 @@ var require_RealtimeChannel = __commonJS({
       on(type, filter, callback) {
         if (this.state === constants_1.CHANNEL_STATES.joined && type === REALTIME_LISTEN_TYPES2.PRESENCE) {
           this.socket.log("channel", `resubscribe to ${this.topic} due to change in presence callbacks on joined channel`);
-          this.unsubscribe().then(() => this.subscribe());
+          this.unsubscribe().then(async () => await this.subscribe());
         }
         return this._on(type, filter, callback);
       }
@@ -3580,6 +3582,16 @@ var require_RealtimeChannel = __commonJS({
         }
         return true;
       }
+      /**
+       * Compares two optional filter values for equality.
+       * Treats undefined, null, and empty string as equivalent empty values.
+       * @internal
+       */
+      static isFilterValueEqual(serverValue, clientValue) {
+        const normalizedServer = serverValue !== null && serverValue !== void 0 ? serverValue : void 0;
+        const normalizedClient = clientValue !== null && clientValue !== void 0 ? clientValue : void 0;
+        return normalizedServer === normalizedClient;
+      }
       /** @internal */
       _rejoinUntilConnected() {
         this.rejoinTimer.scheduleTimeout();
@@ -3699,6 +3711,7 @@ var require_RealtimeClient = __commonJS({
         var _a;
         this.accessTokenValue = null;
         this.apiKey = null;
+        this._manuallySetToken = false;
         this.channels = new Array();
         this.endPoint = "";
         this.httpEndpoint = "";
@@ -3933,7 +3946,18 @@ Option 2: Install and provide the "ws" package:
        *
        * On callback used, it will set the value of the token internal to the client.
        *
+       * When a token is explicitly provided, it will be preserved across channel operations
+       * (including removeChannel and resubscribe). The `accessToken` callback will not be
+       * invoked until `setAuth()` is called without arguments.
+       *
        * @param token A JWT string to override the token set on the client.
+       *
+       * @example
+       * // Use a manual token (preserved across resubscribes, ignores accessToken callback)
+       * client.realtime.setAuth('my-custom-jwt')
+       *
+       * // Switch back to using the accessToken callback
+       * client.realtime.setAuth()
        */
       async setAuth(token = null) {
         this._authPromise = this._performAuth(token);
@@ -3942,6 +3966,14 @@ Option 2: Install and provide the "ws" package:
         } finally {
           this._authPromise = null;
         }
+      }
+      /**
+       * Returns true if the current access token was explicitly set via setAuth(token),
+       * false if it was obtained via the accessToken callback.
+       * @internal
+       */
+      _isManualToken() {
+        return this._manuallySetToken;
       }
       /**
        * Sends a heartbeat message if the socket is connected.
@@ -4229,12 +4261,24 @@ Option 2: Install and provide the "ws" package:
        */
       async _performAuth(token = null) {
         let tokenToSend;
+        let isManualToken = false;
         if (token) {
           tokenToSend = token;
+          isManualToken = true;
         } else if (this.accessToken) {
-          tokenToSend = await this.accessToken();
+          try {
+            tokenToSend = await this.accessToken();
+          } catch (e) {
+            this.log("error", "Error fetching access token from callback", e);
+            tokenToSend = this.accessTokenValue;
+          }
         } else {
           tokenToSend = this.accessTokenValue;
+        }
+        if (isManualToken) {
+          this._manuallySetToken = true;
+        } else if (this.accessToken) {
+          this._manuallySetToken = false;
         }
         if (this.accessTokenValue != tokenToSend) {
           this.accessTokenValue = tokenToSend;
@@ -4266,9 +4310,11 @@ Option 2: Install and provide the "ws" package:
        * @internal
        */
       _setAuthSafely(context = "general") {
-        this.setAuth().catch((e) => {
-          this.log("error", `error setting auth in ${context}`, e);
-        });
+        if (!this._isManualToken()) {
+          this.setAuth().catch((e) => {
+            this.log("error", `Error setting auth in ${context}`, e);
+          });
+        }
       }
       /**
        * Trigger state change callbacks with proper error handling
@@ -5662,7 +5708,7 @@ var require_version2 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.version = void 0;
-    exports2.version = "2.86.2";
+    exports2.version = "2.87.1";
   }
 });
 
@@ -6851,12 +6897,14 @@ var require_StorageAnalyticsClient = __commonJS({
        * Get an Iceberg REST Catalog client configured for a specific analytics bucket
        * Use this to perform advanced table and namespace operations within the bucket
        * The returned client provides full access to the Apache Iceberg REST Catalog API
+       * with the Supabase `{ data, error }` pattern for consistent error handling on all operations.
        *
        * **Public alpha:** This API is part of a public alpha release and may not be available to your account type.
        *
        * @category Analytics Buckets
        * @param bucketName - The name of the analytics bucket (warehouse) to connect to
-       * @returns Configured IcebergRestCatalog instance for advanced Iceberg operations
+       * @returns The wrapped Iceberg catalog client
+       * @throws {StorageError} If the bucket name is invalid
        *
        * @example Get catalog and create table
        * ```js
@@ -6870,10 +6918,10 @@ var require_StorageAnalyticsClient = __commonJS({
        * const catalog = supabase.storage.analytics.from('analytics-data')
        *
        * // Create a namespace
-       * await catalog.createNamespace({ namespace: ['default'] })
+       * const { error: nsError } = await catalog.createNamespace({ namespace: ['default'] })
        *
        * // Create a table with schema
-       * await catalog.createTable(
+       * const { data: tableMetadata, error: tableError } = await catalog.createTable(
        *   { namespace: ['default'] },
        *   {
        *     name: 'events',
@@ -6907,7 +6955,13 @@ var require_StorageAnalyticsClient = __commonJS({
        * const catalog = supabase.storage.analytics.from('analytics-data')
        *
        * // List all tables in the default namespace
-       * const tables = await catalog.listTables({ namespace: ['default'] })
+       * const { data: tables, error: listError } = await catalog.listTables({ namespace: ['default'] })
+       * if (listError) {
+       *   if (listError.isNotFound()) {
+       *     console.log('Namespace not found')
+       *   }
+       *   return
+       * }
        * console.log(tables) // [{ namespace: ['default'], name: 'events' }]
        * ```
        *
@@ -6916,7 +6970,7 @@ var require_StorageAnalyticsClient = __commonJS({
        * const catalog = supabase.storage.analytics.from('analytics-data')
        *
        * // List all namespaces
-       * const namespaces = await catalog.listNamespaces()
+       * const { data: namespaces } = await catalog.listNamespaces()
        *
        * // Create namespace with properties
        * await catalog.createNamespace(
@@ -6930,36 +6984,17 @@ var require_StorageAnalyticsClient = __commonJS({
        * const catalog = supabase.storage.analytics.from('analytics-data')
        *
        * // Drop table with purge option (removes all data)
-       * await catalog.dropTable(
+       * const { error: dropError } = await catalog.dropTable(
        *   { namespace: ['default'], name: 'events' },
        *   { purge: true }
        * )
        *
+       * if (dropError?.isNotFound()) {
+       *   console.log('Table does not exist')
+       * }
+       *
        * // Drop namespace (must be empty)
        * await catalog.dropNamespace({ namespace: ['default'] })
-       * ```
-       *
-       * @example Error handling with catalog operations
-       * ```js
-       * import { IcebergError } from 'iceberg-js'
-       *
-       * const catalog = supabase.storage.analytics.from('analytics-data')
-       *
-       * try {
-       *   await catalog.dropTable({ namespace: ['default'], name: 'events' }, { purge: true })
-       * } catch (error) {
-       *   // Handle 404 errors (resource not found)
-       *   const is404 =
-       *     (error instanceof IcebergError && error.status === 404) ||
-       *     error?.status === 404 ||
-       *     error?.details?.error?.code === 404
-       *
-       *   if (is404) {
-       *     console.log('Table does not exist')
-       *   } else {
-       *     throw error // Re-throw other errors
-       *   }
-       * }
        * ```
        *
        * @remarks
@@ -6967,24 +7002,23 @@ var require_StorageAnalyticsClient = __commonJS({
        * Apache Iceberg REST Catalog API. The bucket name maps to the Iceberg warehouse parameter.
        * All authentication and configuration is handled automatically using your Supabase credentials.
        *
-       * **Error Handling**: Operations may throw `IcebergError` from the iceberg-js library.
-       * Always handle 404 errors gracefully when checking for resource existence.
+       * **Error Handling**: Invalid bucket names throw immediately. All catalog
+       * operations return `{ data, error }` where errors are `IcebergError` instances from iceberg-js.
+       * Use helper methods like `error.isNotFound()` or check `error.status` for specific error handling.
+       * Use `.throwOnError()` on the analytics client if you prefer exceptions for catalog operations.
        *
        * **Cleanup Operations**: When using `dropTable`, the `purge: true` option permanently
        * deletes all table data. Without it, the table is marked as deleted but data remains.
        *
-       * **Library Dependency**: The returned catalog is an instance of `IcebergRestCatalog`
-       * from iceberg-js. For complete API documentation and advanced usage, refer to the
+       * **Library Dependency**: The returned catalog wraps `IcebergRestCatalog` from iceberg-js.
+       * For complete API documentation and advanced usage, refer to the
        * [iceberg-js documentation](https://supabase.github.io/iceberg-js/).
-       *
-       * For advanced Iceberg operations beyond bucket management, you can also install and use
-       * the `iceberg-js` package directly with manual configuration.
        */
       from(bucketName) {
         if (!(0, helpers_1.isValidBucketName)(bucketName)) {
           throw new errors_1.StorageError("Invalid bucket name: File, folder, and bucket names must follow AWS object key naming guidelines and should avoid the use of any other characters.");
         }
-        return new iceberg_js_1.IcebergRestCatalog({
+        const catalog = new iceberg_js_1.IcebergRestCatalog({
           baseUrl: this.url,
           catalogName: bucketName,
           // Maps to the warehouse parameter in Supabase's implementation
@@ -6996,6 +7030,27 @@ var require_StorageAnalyticsClient = __commonJS({
           },
           fetch: this.fetch
         });
+        const shouldThrowOnError = this.shouldThrowOnError;
+        const wrappedCatalog = new Proxy(catalog, {
+          get(target, prop) {
+            const value = target[prop];
+            if (typeof value !== "function") {
+              return value;
+            }
+            return (...args) => tslib_1.__awaiter(this, void 0, void 0, function* () {
+              try {
+                const data = yield value.apply(target, args);
+                return { data, error: null };
+              } catch (error) {
+                if (shouldThrowOnError) {
+                  throw error;
+                }
+                return { data: null, error };
+              }
+            });
+          }
+        });
+        return wrappedCatalog;
       }
     };
     exports2.default = StorageAnalyticsClient;
@@ -8240,7 +8295,7 @@ var require_version3 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.version = void 0;
-    exports2.version = "2.86.2";
+    exports2.version = "2.87.1";
   }
 });
 
@@ -8378,7 +8433,7 @@ var require_version4 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.version = void 0;
-    exports2.version = "2.86.2";
+    exports2.version = "2.87.1";
   }
 });
 
@@ -10738,7 +10793,7 @@ var require_GoTrueClient = __commonJS({
         this.throwOnError = settings.throwOnError;
         if (settings.lock) {
           this.lock = settings.lock;
-        } else if ((0, helpers_1.isBrowser)() && ((_b = globalThis === null || globalThis === void 0 ? void 0 : globalThis.navigator) === null || _b === void 0 ? void 0 : _b.locks)) {
+        } else if (this.persistSession && (0, helpers_1.isBrowser)() && ((_b = globalThis === null || globalThis === void 0 ? void 0 : globalThis.navigator) === null || _b === void 0 ? void 0 : _b.locks)) {
           this.lock = locks_1.navigatorLock;
         } else {
           this.lock = lockNoOp;
@@ -13617,6 +13672,8 @@ var handler = async (event) => {
           leiraid: registro.leiraId,
           data: registro.data,
           precipitacao: registro.precipitacao,
+          umidade: registro.umidade || null,
+          // <--- ADICIONADO AQUI: Salva no Supabase!
           observacao: registro.observacao || null,
           sincronizado: true,
           sincronizado_em: agora,

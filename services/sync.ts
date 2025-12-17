@@ -189,29 +189,18 @@ export const syncService = {
       const fullUrl = `${netlifyUrl}/.netlify/functions/sync-materiais`;
 
       console.log('🔗 URL do Netlify:', netlifyUrl);
-      console.log('🔗 URL Completa:', fullUrl);
       console.log(`📤 Enviando ${materiais.length} materiais...`);
 
       const response = await fetch(fullUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          materiais,
-          operadorId: operador.id,
-          operadorNome: operador.nome,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ materiais, operadorId: operador.id, operadorNome: operador.nome }),
       });
 
-      console.log('📡 Status da resposta:', response.status);
       const result = await response.json();
-      console.log('📥 Resposta:', result);
-
       if (response.ok) {
-        console.log(`✅ ${result.sincronizados} materiais sincronizados com sucesso`);
+        console.log(`✅ ${result.sincronizados} materiais sincronizados`);
       } else {
-        console.error('❌ Erro ao sincronizar materiais:', result);
         throw new Error(result.erro || 'Erro desconhecido');
       }
     } catch (error) {
@@ -226,30 +215,18 @@ export const syncService = {
       const netlifyUrl = process.env.EXPO_PUBLIC_NETLIFY_URL || 'http://localhost:9999';
       const fullUrl = `${netlifyUrl}/.netlify/functions/sync-leiras`;
 
-      console.log('🔗 URL do Netlify:', netlifyUrl);
-      console.log('🔗 URL Completa:', fullUrl);
       console.log(`📤 Enviando ${leiras.length} leiras...`);
 
       const response = await fetch(fullUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          leiras,
-          operadorId: operador.id,
-          operadorNome: operador.nome,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ leiras, operadorId: operador.id, operadorNome: operador.nome }),
       });
 
-      console.log('📡 Status da resposta:', response.status);
       const result = await response.json();
-      console.log('📥 Resposta:', result);
-
       if (response.ok) {
-        console.log(`✅ ${result.sincronizados} leiras sincronizadas com sucesso`);
+        console.log(`✅ ${result.sincronizados} leiras sincronizadas`);
       } else {
-        console.error('❌ Erro ao sincronizar leiras:', result);
         throw new Error(result.erro || 'Erro desconhecido');
       }
     } catch (error) {
@@ -264,30 +241,18 @@ export const syncService = {
       const netlifyUrl = process.env.EXPO_PUBLIC_NETLIFY_URL || 'http://localhost:9999';
       const fullUrl = `${netlifyUrl}/.netlify/functions/sync-monitoramento`;
 
-      console.log('🔗 URL do Netlify:', netlifyUrl);
-      console.log('🔗 URL Completa:', fullUrl);
       console.log(`📤 Enviando ${monitoramentos.length} monitoramentos...`);
 
       const response = await fetch(fullUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          monitoramentos,
-          operadorId: operador.id,
-          operadorNome: operador.nome,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ monitoramentos, operadorId: operador.id, operadorNome: operador.nome }),
       });
 
-      console.log('📡 Status da resposta:', response.status);
       const result = await response.json();
-      console.log('📥 Resposta:', result);
-
       if (response.ok) {
-        console.log(`✅ ${result.sincronizados} monitoramentos sincronizados com sucesso`);
+        console.log(`✅ ${result.sincronizados} monitoramentos sincronizados`);
       } else {
-        console.error('❌ Erro ao sincronizar monitoramentos:', result);
         throw new Error(result.erro || 'Erro desconhecido');
       }
     } catch (error) {
@@ -296,36 +261,41 @@ export const syncService = {
     }
   },
 
-  // ===== SINCRONIZAR CLIMA =====
+  // ===== SINCRONIZAR CLIMA (CORRIGIDO) =====
   async sincronizarClima(clima: any[], operador: any): Promise<void> {
     try {
       const netlifyUrl = process.env.EXPO_PUBLIC_NETLIFY_URL || 'http://localhost:9999';
       const fullUrl = `${netlifyUrl}/.netlify/functions/sync-clima`;
 
       console.log('🔗 URL do Netlify:', netlifyUrl);
-      console.log('🔗 URL Completa:', fullUrl);
-      console.log(`📤 Enviando ${clima.length} registros de clima...`);
+      
+      // ✅ CORREÇÃO CRÍTICA: Forçar umidade a ser null se for undefined
+      // Isso garante que o campo seja enviado no JSON
+      const payloadClima = clima.map(item => ({
+        ...item,
+        umidade: item.umidade || null, // <--- O SEGREDO ESTÁ AQUI
+        observacao: item.observacao || ''
+      }));
+
+      console.log(`📤 Enviando ${payloadClima.length} registros de clima...`);
+      // console.log('DEBUG PAYLOAD:', JSON.stringify(payloadClima)); // Descomente se precisar debugar
 
       const response = await fetch(fullUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          clima,
-          operadorId: operador.id,
-          operadorNome: operador.nome,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          clima: payloadClima, 
+          operadorId: operador.id, 
+          operadorNome: operador.nome 
         }),
       });
 
-      console.log('📡 Status da resposta:', response.status);
       const result = await response.json();
-      console.log('📥 Resposta:', result);
+      console.log('📥 Resposta Clima:', result);
 
       if (response.ok) {
-        console.log(`✅ ${result.sincronizados} registros de clima sincronizados com sucesso`);
+        console.log(`✅ ${result.sincronizados} registros de clima sincronizados`);
       } else {
-        console.error('❌ Erro ao sincronizar clima:', result);
         throw new Error(result.erro || 'Erro desconhecido');
       }
     } catch (error) {
@@ -340,30 +310,18 @@ export const syncService = {
       const netlifyUrl = process.env.EXPO_PUBLIC_NETLIFY_URL || 'http://localhost:9999';
       const fullUrl = `${netlifyUrl}/.netlify/functions/sync-enriquecimento`;
 
-      console.log('🔗 URL do Netlify:', netlifyUrl);
-      console.log('🔗 URL Completa:', fullUrl);
       console.log(`📤 Enviando ${enriquecimentos.length} enriquecimentos...`);
 
       const response = await fetch(fullUrl, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          enriquecimentos,
-          operadorId: operador.id,
-          operadorNome: operador.nome,
-        }),
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ enriquecimentos, operadorId: operador.id, operadorNome: operador.nome }),
       });
 
-      console.log('📡 Status da resposta:', response.status);
       const result = await response.json();
-      console.log('📥 Resposta:', result);
-
       if (response.ok) {
-        console.log(`✅ ${result.sincronizados} enriquecimentos sincronizados com sucesso`);
+        console.log(`✅ ${result.sincronizados} enriquecimentos sincronizados`);
       } else {
-        console.error('❌ Erro ao sincronizar enriquecimentos:', result);
         throw new Error(result.erro || 'Erro desconhecido');
       }
     } catch (error) {

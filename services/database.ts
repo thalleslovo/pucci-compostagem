@@ -64,16 +64,26 @@ export const initializeDatabase = async (): Promise<void> => {
         FOREIGN KEY (leira_id) REFERENCES leiras(id)
       );
 
+      -- ATUALIZADO: Adicionado campo 'umidade'
       CREATE TABLE IF NOT EXISTS registros_chuva (
         id TEXT PRIMARY KEY,
         leira_id TEXT,
         data_chuva TEXT,
         milimetros REAL,
+        umidade TEXT, 
         observacoes TEXT,
         criado_em TEXT,
         FOREIGN KEY (leira_id) REFERENCES leiras(id)
       );
     `);
+
+    // ✅ MIGRAÇÃO AUTOMÁTICA: Adiciona coluna 'umidade' se não existir
+    try {
+      await db.execAsync(`ALTER TABLE registros_chuva ADD COLUMN umidade TEXT;`);
+      console.log('✅ Coluna umidade adicionada com sucesso');
+    } catch (e) {
+      // Ignora erro se a coluna já existir
+    }
 
     console.log('✅ Banco de dados inicializado com sucesso');
   } catch (error) {
@@ -363,7 +373,7 @@ export const databaseService = {
 
   // ==================== REGISTROS DE CHUVA ====================
 
-  // CHUVA: Criar
+  // CHUVA: Criar (ATUALIZADO COM UMIDADE)
   createRegistroChuva: async (
     chuva: Omit<RegistroChuva, 'id' | 'criado_em'>
   ): Promise<RegistroChuva> => {
@@ -379,13 +389,14 @@ export const databaseService = {
       };
 
       await database.runAsync(
-        `INSERT INTO registros_chuva (id, leira_id, data_chuva, milimetros, observacoes, criado_em)
-         VALUES (?, ?, ?, ?, ?, ?)`,
+        `INSERT INTO registros_chuva (id, leira_id, data_chuva, milimetros, umidade, observacoes, criado_em)
+         VALUES (?, ?, ?, ?, ?, ?, ?)`,
         [
           novoRegistro.id,
           novoRegistro.leira_id,
           novoRegistro.data_chuva,
           novoRegistro.milimetros,
+          novoRegistro.umidade || null, // Salva umidade
           novoRegistro.observacoes || null,
           novoRegistro.criado_em,
         ]

@@ -125,9 +125,9 @@ export default function AppLayout() {
     
       {/* Tela Registro de Chuva */}
       <Stack.Screen
-        name="registro-chuva"
+        name="monitorar-clima" // <--- CORRIGIDO
         options={{
-          title: 'Registro de Chuva',
+          title: 'Monitorar Clima',
           headerBackTitle: 'Voltar',
         }}
       />

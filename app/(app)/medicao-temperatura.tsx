@@ -21,7 +21,7 @@ export default function MedicaoTemperaturaScreen() {
           style={styles.backButton}
           onPress={() => router.back()}
         >
-          <Text style={styles.backIcon}>←</Text>
+          
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Medição de Temperatura</Text>
         <View style={styles.backButton} />

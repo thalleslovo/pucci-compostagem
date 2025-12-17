@@ -11,6 +11,7 @@ interface RegistroClima {
   leiraId: string;
   data: string;
   precipitacao: number;
+  umidade?: string; // <--- ADICIONADO AQUI
   observacao?: string;
 }
 
@@ -70,6 +71,7 @@ export const handler: Handler = async (event) => {
             leiraid: registro.leiraId,
             data: registro.data,
             precipitacao: registro.precipitacao,
+            umidade: registro.umidade || null, // <--- ADICIONADO AQUI: Salva no Supabase!
             observacao: registro.observacao || null,
             sincronizado: true,
             sincronizado_em: agora,

@@ -12,6 +12,7 @@ interface MonitoramentoChuva {
   leiraId: string;
   data: string; // DD/MM/AAAA
   precipitacao: number; // 0-500 mm
+  umidade?: string; // 'Seca' | 'Ideal' | 'Encharcada'
   observacao?: string;
   timestamp: number; // Para ordenação
 }
@@ -43,6 +44,7 @@ const ChuvaScreen: React.FC = () => {
     new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
   );
   const [precipitacao, setPrecipitacao] = useState<string>('');
+  const [umidade, setUmidade] = useState<string>(''); // Novo estado para umidade
   const [observacao, setObservacao] = useState<string>('');
   const [registros, setRegistros] = useState<MonitoramentoChuva[]>([]);
   const [editingRecordId, setEditingRecordId] = useState<string | null>(null);
@@ -198,6 +200,7 @@ const ChuvaScreen: React.FC = () => {
         leiraId: leiraId,
         data: dataRegistro,
         precipitacao: parseFloat(precipitacao),
+        umidade: umidade || undefined, // Salva umidade se selecionada
         observacao: observacao.trim() || undefined,
         timestamp: timestamp,
       };
@@ -231,7 +234,7 @@ const ChuvaScreen: React.FC = () => {
     const mensagem = editingRecordId
       ? 'Registro atualizado com sucesso!\n\nOs dados serão sincronizados com o servidor quando você conectar à internet ✅.'
       : aplicarParaTodasLeiras
-        ? `Dados de precipitação aplicados para ${leirasParaAplicar.length} leiras ativas!\n\nOs dados serão sincronizados com o servidor quando você conectar à internet.`
+        ? `Dados de precipitação e umidade aplicados para ${leirasParaAplicar.length} leiras ativas!\n\nOs dados serão sincronizados com o servidor quando você conectar à internet.`
         : 'Registro salvo com sucesso!\n\nOs dados serão sincronizados com o servidor quando você conectar à internet.';
 
     Alert.alert('Sucesso', mensagem);
@@ -245,6 +248,7 @@ const ChuvaScreen: React.FC = () => {
     setAplicarParaTodasLeiras(false); // Sempre individual na edição
     setDataRegistro(record.data);
     setPrecipitacao(record.precipitacao.toString());
+    setUmidade(record.umidade || ''); // Carrega umidade se existir
     setObservacao(record.observacao || '');
   };
 
@@ -282,6 +286,7 @@ const ChuvaScreen: React.FC = () => {
       new Date().toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })
     );
     setPrecipitacao('');
+    setUmidade(''); // Limpa umidade
     setObservacao('');
   };
 
@@ -314,6 +319,16 @@ const ChuvaScreen: React.FC = () => {
     }
   };
 
+  // ===== OBTER COR DA UMIDADE =====
+  const getUmidadeColor = (status: string) => {
+    switch (status) {
+      case 'Seca': return '#F97316'; // Laranja
+      case 'Ideal': return '#22C55E'; // Verde
+      case 'Encharcada': return '#3B82F6'; // Azul
+      default: return '#9CA3AF'; // Cinza
+    }
+  };
+
   // ===== AGRUPAR REGISTROS POR DATA =====
   const agruparRegistrosPorData = () => {
     const grupos: { [data: string]: MonitoramentoChuva[] } = {};
@@ -335,7 +350,7 @@ const ChuvaScreen: React.FC = () => {
   return (
     <SafeAreaView style={styles.safeArea}>
       <ScrollView style={styles.container}>
-        <Text style={styles.title}>🌧️ Monitoramento de Precipitação</Text>
+        <Text style={styles.title}>🌧️ Monitoramento de Clima</Text>
 
         {/* ===== STATUS DAS LEIRAS ===== */}
         <View style={styles.statusCard}>
@@ -431,6 +446,28 @@ const ChuvaScreen: React.FC = () => {
             keyboardType="numeric"
           />
 
+          {/* ===== SELETOR DE UMIDADE (NOVO) ===== */}
+          <Text style={styles.label}>Umidade (Opcional):</Text>
+          <View style={styles.umidadeContainer}>
+            {['Seca', 'Ideal', 'Encharcada'].map((opcao) => (
+              <TouchableOpacity
+                key={opcao}
+                style={[
+                  styles.umidadeButton,
+                  umidade === opcao && { backgroundColor: getUmidadeColor(opcao), borderColor: getUmidadeColor(opcao) }
+                ]}
+                onPress={() => setUmidade(umidade === opcao ? '' : opcao)}
+              >
+                <Text style={[
+                  styles.umidadeButtonText,
+                  umidade === opcao && { color: '#FFFFFF' }
+                ]}>
+                  {opcao}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+
           <Text style={styles.label}>Observação (Opcional):</Text>
           <TextInput
             style={styles.input}
@@ -503,6 +540,16 @@ const ChuvaScreen: React.FC = () => {
                           <Text style={styles.precipitacaoBadgeText}>{precipitacaoIndicator.text}</Text>
                         </View>
                       </View>
+
+                      {/* ===== EXIBIÇÃO DA UMIDADE NO CARD ===== */}
+                      {record.umidade && (
+                        <View style={styles.precipitacaoRow}>
+                          <Text style={styles.recordDetail}>💧 Umidade: </Text>
+                          <View style={[styles.precipitacaoBadge, { backgroundColor: getUmidadeColor(record.umidade) }]}>
+                            <Text style={styles.precipitacaoBadgeText}>{record.umidade}</Text>
+                          </View>
+                        </View>
+                      )}
 
                       {record.observacao && (
                         <Text style={styles.recordObservation}>📝 Obs: {record.observacao}</Text>
@@ -674,6 +721,27 @@ const styles = StyleSheet.create({
     height: 50,
     width: '100%',
     color: '#333',
+  },
+  // ESTILOS NOVOS PARA UMIDADE
+  umidadeContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 15,
+    gap: 10,
+  },
+  umidadeButton: {
+    flex: 1,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    backgroundColor: '#F3F4F6',
+    alignItems: 'center',
+  },
+  umidadeButtonText: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#4B5563',
   },
   buttonPrimary: {
     backgroundColor: '#1E40AF',

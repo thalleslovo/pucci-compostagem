@@ -238,7 +238,7 @@ export default function EntradaMaterialScreen() {
                         style={styles.backButton}
                         onPress={() => router.back()}
                     >
-                        <Text style={styles.backIcon}>←</Text>
+                        
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Entrada de Material</Text>
                     <View style={styles.backButton} />

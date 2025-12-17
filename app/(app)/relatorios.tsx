@@ -312,7 +312,7 @@ export default function RelatoriosScreen() {
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Text style={styles.backIcon}>←</Text>
+            
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Relatório de Leiras</Text>
           <TouchableOpacity

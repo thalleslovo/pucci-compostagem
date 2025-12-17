@@ -338,7 +338,7 @@ export default function NovaLeiraScreen() {
             style={styles.backButton}
             onPress={() => router.back()}
           >
-            <Text style={styles.backIcon}>←</Text>
+            
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Formação de Leira</Text>
           <View style={styles.backButton} />

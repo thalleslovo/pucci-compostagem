@@ -52,6 +52,7 @@ export interface RegistroChuva {
   leira_id: string;
   data_chuva: string;
   milimetros: number;
+  umidade?: string
   observacoes?: string;
   criado_em: string;
 }

@@ -11,6 +11,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { authService } from '@/services/auth';
+import { sincronizarAgora, obterTamanhoFila } from '@/services/background-sync';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const PALETTE = {
@@ -43,6 +44,11 @@ export default function DashboardScreen() {
   const [leirasSecando, setLeirasSecando] = useState(0);
   const [leirasCompostando, setLeirasCompostando] = useState(0);
   const [leirasMaturando, setLeirasMaturando] = useState(0);
+
+  // ===== STATES DE SINCRONIZAÇÃO =====
+  const [tamanhoFila, setTamanhoFila] = useState(0);
+  const [ultimaSincronizacao, setUltimaSincronizacao] = useState('');
+  const [sincronizando, setSincronizando] = useState(false);
 
   // ===== FUNÇÃO DE CARREGAMENTO =====
   const carregarTotalLeiras = async () => {
@@ -77,10 +83,6 @@ export default function DashboardScreen() {
         console.log(`   📊 Total: ${leiras.length}`);
         console.log(`   ✅ Prontas para Venda: ${prontas}`);
         console.log(`   🔄 Em Produção: ${emProducao}`);
-        console.log(`      - Formadas: ${formadas}`);
-        console.log(`      - Secando: ${secando}`);
-        console.log(`      - Compostando: ${compostando}`);
-        console.log(`      - Maturando: ${maturando}`);
       } else {
         console.log('📭 Nenhuma leira encontrada no AsyncStorage');
         // Reset todos os valores
@@ -92,23 +94,59 @@ export default function DashboardScreen() {
         setLeirasCompostando(0);
         setLeirasMaturando(0);
       }
+
+      // ===== CARREGAR TAMANHO DA FILA =====
+      const tamanho = await obterTamanhoFila();
+      setTamanhoFila(tamanho);
+      console.log(`📦 Fila de sincronização: ${tamanho} itens`);
+
+      // ===== CARREGAR ÚLTIMA SINCRONIZAÇÃO =====
+      const ultimoSync = await AsyncStorage.getItem('ultimaSincronizacao');
+      if (ultimoSync) {
+        setUltimaSincronizacao(ultimoSync);
+      } else {
+        setUltimaSincronizacao('Nunca');
+      }
     } catch (error) {
-      console.error('❌ Erro ao carregar leiras:', error);
-      // Reset em caso de erro
-      setTotalLeiras(0);
-      setLeirasProntas(0);
-      setLeirasEmProducao(0);
-      setLeirasFormadas(0);
-      setLeirasSecando(0);
-      setLeirasCompostando(0);
-      setLeirasMaturando(0);
+      console.error('❌ Erro ao carregar dashboard:', error);
     }
   };
 
   // ===== CARREGA DADOS AO FOCAR NA TELA =====
-  useFocusEffect(React.useCallback(() => {
-    carregarTotalLeiras();
-  }, []));
+  useFocusEffect(
+    React.useCallback(() => {
+      carregarTotalLeiras();
+    }, [])
+  );
+
+  // ===== SINCRONIZAR MANUALMENTE =====
+  const handleSincronizarAgora = async () => {
+    try {
+      setSincronizando(true);
+      console.log('🔄 Sincronizando manualmente...');
+
+      const sucesso = await sincronizarAgora();
+
+      if (sucesso) {
+        Alert.alert('✅ Sucesso', 'Dados sincronizados com sucesso!');
+
+        // Atualizar timestamp
+        const agora = new Date().toLocaleTimeString('pt-BR');
+        setUltimaSincronizacao(agora);
+        await AsyncStorage.setItem('ultimaSincronizacao', agora);
+
+        // Recarregar dados
+        await carregarTotalLeiras();
+      } else {
+        Alert.alert('⚠️ Aviso', 'Não há itens para sincronizar ou erro na conexão');
+      }
+    } catch (error) {
+      console.error('❌ Erro ao sincronizar:', error);
+      Alert.alert('❌ Erro', 'Erro ao sincronizar dados');
+    } finally {
+      setSincronizando(false);
+    }
+  };
 
   // ===== FUNÇÃO DE RESET =====
   const handleReset = () => {
@@ -118,7 +156,7 @@ export default function DashboardScreen() {
       [
         {
           text: 'Cancelar',
-          onPress: () => {},
+          onPress: () => { },
           style: 'cancel',
         },
         {
@@ -132,6 +170,7 @@ export default function DashboardScreen() {
               await AsyncStorage.removeItem('leirasMonitoramento');
               await AsyncStorage.removeItem('leirasClimatica');
               await AsyncStorage.removeItem('filaSync');
+              await AsyncStorage.removeItem('ultimaSincronizacao');
 
               console.log('✅ Dados deletados com sucesso!');
               Alert.alert('Sucesso', 'App resetado! Reinicie o app para ver as mudanças.');
@@ -157,7 +196,7 @@ export default function DashboardScreen() {
       [
         {
           text: 'Cancelar',
-          onPress: () => {},
+          onPress: () => { },
           style: 'cancel',
         },
         {
@@ -233,6 +272,64 @@ export default function DashboardScreen() {
           />
         </View>
 
+        {/* ===== STATS DETALHADOS ===== */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Detalhes das Leiras</Text>
+          <View style={styles.detailsGrid}>
+            <DetailCard
+              icon="📦"
+              label="Formadas"
+              value={leirasFormadas.toString()}
+              color={PALETTE.cinza}
+            />
+            <DetailCard
+              icon="💨"
+              label="Secando"
+              value={leirasSecando.toString()}
+              color="#FF9800"
+            />
+            <DetailCard
+              icon="🔄"
+              label="Compostando"
+              value={leirasCompostando.toString()}
+              color="#2196F3"
+            />
+            <DetailCard
+              icon="🌱"
+              label="Maturando"
+              value={leirasMaturando.toString()}
+              color="#8BC34A"
+            />
+          </View>
+        </View>
+
+        {/* ===== SINCRONIZAÇÃO ===== */}
+        <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Sincronização</Text>
+          <View style={styles.syncCard}>
+            <View style={styles.syncInfo}>
+              <Text style={styles.syncLabel}>Fila de Sincronização:</Text>
+              <Text style={styles.syncValue}>
+                {tamanhoFila > 0 ? `${tamanhoFila} itens pendentes` : '✅ Tudo sincronizado'}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={[styles.syncButton, sincronizando && styles.syncButtonDisabled]}
+              onPress={handleSincronizarAgora}
+              disabled={sincronizando}
+            >
+              <Text style={styles.syncButtonText}>
+                {sincronizando ? '⏳ Sincronizando...' : '🔄 Sincronizar Agora'}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          <View style={styles.lastSyncCard}>
+            <Text style={styles.lastSyncLabel}>Última Sincronização:</Text>
+            <Text style={styles.lastSyncTime}>{ultimaSincronizacao}</Text>
+          </View>
+        </View>
+
         {/* ===== QUICK ACTIONS ===== */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Ações Rápidas</Text>
@@ -253,8 +350,13 @@ export default function DashboardScreen() {
               onPress={() => router.push('/(app)/relatorios')}
             />
             <ActionCard
+              icon="📋"
+              title="Monitoramento"
+              onPress={() => router.push('/(app)/selecionar-leira')}  // ✅ CORRIGIDO
+            />
+            <ActionCard
               icon="🌧️"
-              title="Monitoramento de Chuva"
+              title="Clima"
               onPress={() => router.push('/(app)/monitorar-clima')}
             />
           </View>
@@ -281,9 +383,7 @@ export default function DashboardScreen() {
 
         {/* ===== FOOTER INFO ===== */}
         <View style={styles.footerInfo}>
-          <Text style={styles.footerTitle}>Última Sincronização</Text>
-          <Text style={styles.footerTime}>Hoje, 15:45</Text>
-          <Text style={styles.footerVersion}>v1.0.0</Text>
+          <Text style={styles.footerVersion}>v1.0.0 • Campos Solo</Text>
         </View>
       </ScrollView>
     </SafeAreaView>
@@ -310,6 +410,24 @@ function StatCard({ icon, title, value, color }: StatCardProps) {
   );
 }
 
+// ===== COMPONENTE: DETAIL CARD =====
+interface DetailCardProps {
+  icon: string;
+  label: string;
+  value: string;
+  color: string;
+}
+
+function DetailCard({ icon, label, value, color }: DetailCardProps) {
+  return (
+    <View style={styles.detailCard}>
+      <Text style={styles.detailIcon}>{icon}</Text>
+      <Text style={styles.detailValue}>{value}</Text>
+      <Text style={[styles.detailLabel, { color }]}>{label}</Text>
+    </View>
+  );
+}
+
 // ===== COMPONENTE: ACTION CARD =====
 interface ActionCardProps {
   icon: string;
@@ -329,94 +447,6 @@ function ActionCard({ icon, title, onPress }: ActionCardProps) {
       </View>
       <Text style={styles.actionTitle}>{title}</Text>
     </TouchableOpacity>
-  );
-}
-
-// ===== COMPONENTE: ACTIVITY ITEM =====
-interface ActivityItemProps {
-  icon: string;
-  title: string;
-  description: string;
-  date: string;
-  status: 'ativa' | 'concluida' | 'pendente';
-}
-
-function ActivityItem({
-  icon,
-  title,
-  description,
-  date,
-  status,
-}: ActivityItemProps) {
-  const getStatusColor = () => {
-    switch (status) {
-      case 'ativa':
-        return PALETTE.verdePrimario;
-      case 'concluida':
-        return PALETTE.sucesso;
-      case 'pendente':
-        return PALETTE.warning;
-      default:
-        return PALETTE.cinza;
-    }
-  };
-
-  const getStatusLabel = () => {
-    switch (status) {
-      case 'ativa':
-        return 'Ativa';
-      case 'concluida':
-        return 'Concluída';
-      case 'pendente':
-        return 'Pendente';
-      default:
-        return '';
-    }
-  };
-
-  return (
-    <View style={styles.activityItem}>
-      <Text style={styles.activityIcon}>{icon}</Text>
-      <View style={styles.activityContent}>
-        <View style={styles.activityHeader}>
-          <Text style={styles.activityTitle}>{title}</Text>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor() },
-            ]}
-          >
-            <Text style={styles.statusText}>{getStatusLabel()}</Text>
-          </View>
-        </View>
-        <Text style={styles.activityDescription}>{description}</Text>
-        <Text style={styles.activityDate}>{date}</Text>
-      </View>
-    </View>
-  );
-}
-
-// ===== COMPONENTE: INFO CARD =====
-interface InfoCardProps {
-  title: string;
-  value: string;
-  subtitle: string;
-  icon: string;
-  color: string;
-}
-
-function InfoCard({ title, value, subtitle, icon, color }: InfoCardProps) {
-  return (
-    <View style={[styles.infoCard, { borderLeftColor: color }]}>
-      <View style={styles.infoHeader}>
-        <Text style={styles.infoIcon}>{icon}</Text>
-        <View style={styles.infoTexts}>
-          <Text style={styles.infoTitle}>{title}</Text>
-          <Text style={styles.infoSubtitle}>{subtitle}</Text>
-        </View>
-      </View>
-      <Text style={[styles.infoValue, { color }]}>{value}</Text>
-    </View>
   );
 }
 
@@ -519,6 +549,102 @@ const styles = StyleSheet.create({
     marginBottom: 12,
   },
 
+  // ===== DETAIL CARDS =====
+  detailsGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
+    gap: 10,
+  },
+  detailCard: {
+    width: '48%',
+    backgroundColor: PALETTE.branco,
+    borderRadius: 12,
+    padding: 14,
+    alignItems: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  detailIcon: {
+    fontSize: 24,
+    marginBottom: 6,
+  },
+  detailValue: {
+    fontSize: 20,
+    fontWeight: '700',
+    color: PALETTE.preto,
+  },
+  detailLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    marginTop: 4,
+  },
+
+  // ===== SINCRONIZAÇÃO =====
+  syncCard: {
+    backgroundColor: PALETTE.branco,
+    borderRadius: 12,
+    padding: 14,
+    marginBottom: 10,
+    borderLeftWidth: 3,
+    borderLeftColor: PALETTE.verdePrimario,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  syncInfo: {
+    marginBottom: 12,
+  },
+  syncLabel: {
+    fontSize: 12,
+    color: PALETTE.cinza,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  syncValue: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PALETTE.preto,
+  },
+  syncButton: {
+    backgroundColor: PALETTE.verdePrimario,
+    paddingVertical: 10,
+    paddingHorizontal: 14,
+    borderRadius: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  syncButtonDisabled: {
+    backgroundColor: PALETTE.cinza,
+    opacity: 0.6,
+  },
+  syncButtonText: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: PALETTE.branco,
+  },
+  lastSyncCard: {
+    backgroundColor: PALETTE.verdeClaro2,
+    borderRadius: 10,
+    padding: 12,
+  },
+  lastSyncLabel: {
+    fontSize: 12,
+    color: PALETTE.cinza,
+    fontWeight: '500',
+    marginBottom: 4,
+  },
+  lastSyncTime: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: PALETTE.verdePrimario,
+  },
+
   // ===== ACTIONS =====
   actionsGrid: {
     flexDirection: 'row',
@@ -555,98 +681,6 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: PALETTE.preto,
     textAlign: 'center',
-  },
-
-  // ===== ACTIVITIES =====
-  activityItem: {
-    flexDirection: 'row',
-    backgroundColor: PALETTE.branco,
-    borderRadius: 12,
-    padding: 14,
-    marginBottom: 10,
-    borderLeftWidth: 3,
-    borderLeftColor: PALETTE.verdePrimario,
-  },
-  activityIcon: {
-    fontSize: 28,
-    marginRight: 12,
-    marginTop: 4,
-  },
-  activityContent: {
-    flex: 1,
-  },
-  activityHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 6,
-  },
-  activityTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: PALETTE.preto,
-    flex: 1,
-  },
-  statusBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginLeft: 8,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: PALETTE.branco,
-  },
-  activityDescription: {
-    fontSize: 12,
-    color: PALETTE.cinza,
-    marginBottom: 4,
-  },
-  activityDate: {
-    fontSize: 11,
-    color: PALETTE.cinzaClaro,
-    fontWeight: '500',
-  },
-
-  // ===== INFO CARDS =====
-  infoCard: {
-    backgroundColor: PALETTE.branco,
-    borderRadius: 14,
-    padding: 16,
-    marginBottom: 12,
-    borderLeftWidth: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 2,
-  },
-  infoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  infoIcon: {
-    fontSize: 28,
-    marginRight: 12,
-  },
-  infoTexts: {
-    flex: 1,
-  },
-  infoTitle: {
-    fontSize: 13,
-    fontWeight: '600',
-    color: PALETTE.preto,
-  },
-  infoSubtitle: {
-    fontSize: 11,
-    color: PALETTE.cinza,
-    marginTop: 2,
-  },
-  infoValue: {
-    fontSize: 26,
-    fontWeight: '800',
   },
 
   // ===== DANGER SECTION (RESET + LOGOUT) =====
@@ -686,7 +720,7 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
   },
-   logoutButtonText: {
+  logoutButtonText: {
     fontSize: 14,
     fontWeight: '700',
     color: PALETTE.branco,
@@ -699,18 +733,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     borderTopWidth: 1,
     borderTopColor: PALETTE.cinzaClaro,
-  },
-  footerTitle: {
-    fontSize: 12,
-    color: PALETTE.cinza,
-    fontWeight: '500',
-    marginBottom: 4,
-  },
-  footerTime: {
-    fontSize: 14,
-    color: PALETTE.verdePrimario,
-    fontWeight: '600',
-    marginBottom: 6,
   },
   footerVersion: {
     fontSize: 11,

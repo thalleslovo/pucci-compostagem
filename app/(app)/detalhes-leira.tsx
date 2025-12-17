@@ -750,7 +750,7 @@ const handleRegistrarEnriquecimento = async () => {
               style={styles.backButton}
               onPress={() => router.back()}
             >
-              <Text style={styles.backIcon}>←</Text>
+              
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Detalhes da Leira</Text>
             <View style={styles.backButton} />
