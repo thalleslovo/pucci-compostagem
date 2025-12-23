@@ -13635,34 +13635,35 @@ var handler = async (event) => {
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "POST, OPTIONS"
   };
-  if (event.httpMethod === "OPTIONS") {
-    return { statusCode: 200, headers, body: "" };
-  }
+  if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers, body: "" };
   try {
     const body = JSON.parse(event.body || "{}");
     const { tabela, itens } = body;
-    console.log(`\u{1F5D1}\uFE0F Pedido de delete: Tabela '${tabela}', ${itens?.length} itens`);
     if (!itens || itens.length === 0) {
       return { statusCode: 200, headers, body: JSON.stringify({ deletados: 0 }) };
     }
     const mapaTabelas = {
-      // Quando o App pede 'leiras', o Backend apaga em 'leiras_formadas'
       "leira": "leiras_formadas",
+      // <--- IMPORTANTE
       "leiras": "leiras_formadas",
+      // <--- IMPORTANTE
       "clima": "monitoramento_clima",
       "monitoramento": "monitoramentos",
-      "material": "materiais_registrados",
-      "materiais": "materiais_registrados"
+      "material": "materiais_registrados"
     };
     const tabelaReal = mapaTabelas[tabela] || tabela;
     const idsParaDeletar = itens.map((i) => i.id);
-    console.log(`\u{1F3AF} Deletando da tabela real: '${tabelaReal}'`);
+    console.log(`\u{1F5D1}\uFE0F Deletando ${idsParaDeletar.length} itens de '${tabelaReal}'`);
     const { error, count } = await supabase.from(tabelaReal).delete({ count: "exact" }).in("id", idsParaDeletar);
     if (error) {
       console.error("\u274C Erro Supabase:", error.message);
-      throw error;
+      return {
+        statusCode: 400,
+        // Bad Request
+        headers,
+        body: JSON.stringify({ erro: error.message })
+      };
     }
-    console.log(`\u2705 Sucesso! ${count} registros apagados de ${tabelaReal}.`);
     return {
       statusCode: 200,
       headers,
@@ -13673,10 +13674,7 @@ var handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({
-        erro: error.message || "Erro interno ao deletar",
-        sucesso: false
-      })
+      body: JSON.stringify({ erro: error.message || "Erro interno" })
     };
   }
 };

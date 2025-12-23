@@ -34,6 +34,17 @@ export const syncService = {
     }
   },
 
+  // ===== OBTER TAMANHO DA FILA (ESSENCIAL PARA O DASHBOARD) =====
+  async obterTamanhoFila(): Promise<number> {
+    try {
+      const fila = await AsyncStorage.getItem('filaSync') || '[]';
+      const filaArray: SyncQueue[] = JSON.parse(fila);
+      return filaArray.length;
+    } catch (error) {
+      return 0;
+    }
+  },
+
   // ===== ADICIONAR À FILA =====
   async adicionarFila(tipo: SyncQueue['tipo'], dados: any): Promise<void> {
     try {
@@ -88,7 +99,6 @@ export const syncService = {
       if (grupos.leira.length) await this.sincronizarGenerico('sync-leiras', { leiras: grupos.leira }, operador).catch(() => erros++);
       if (grupos.monitoramento.length) await this.sincronizarGenerico('sync-monitoramento', { monitoramentos: grupos.monitoramento }, operador).catch(() => erros++);
       
-      // Clima precisa de tratamento especial nos dados
       if (grupos.clima.length) {
         const payloadClima = grupos.clima.map(i => ({ ...i, umidade: i.umidade || null, observacao: i.observacao || '' }));
         await this.sincronizarGenerico('sync-clima', { clima: payloadClima }, operador).catch(() => erros++);
@@ -96,7 +106,7 @@ export const syncService = {
 
       if (grupos.enriquecimento.length) await this.sincronizarGenerico('sync-enriquecimento', { enriquecimentos: grupos.enriquecimento }, operador).catch(() => erros++);
 
-      // DELEÇÕES (USANDO A NOVA FUNÇÃO DE DEBUG)
+      // DELEÇÕES
       if (grupos.leira_deletada.length) await this.sincronizarDelecoes('leiras', grupos.leira_deletada, operador).catch(() => erros++);
       if (grupos.clima_deletado.length) await this.sincronizarDelecoes('clima', grupos.clima_deletado, operador).catch(() => erros++);
 
@@ -125,13 +135,13 @@ export const syncService = {
     if (!response.ok) throw new Error(`Erro ${response.status} em ${endpoint}`);
   },
 
-  // ===== FUNÇÃO DE DELEÇÃO COM DEBUG (O ESPIÃO) =====
+  // ===== FUNÇÃO DE DELEÇÃO (VERSÃO FINAL PROFISSIONAL) =====
   async sincronizarDelecoes(tabela: string, itens: any[], operador: any): Promise<void> {
     try {
       const netlifyUrl = process.env.EXPO_PUBLIC_NETLIFY_URL || 'http://localhost:9999';
       const fullUrl = `${netlifyUrl}/.netlify/functions/sync-delete`;
 
-      console.log(`🗑️ Enviando DELETE para ${tabela}...`);
+      console.log(`🗑️ Enviando ${itens.length} itens para deletar da tabela ${tabela}...`);
 
       const response = await fetch(fullUrl, {
         method: 'POST',
@@ -139,30 +149,31 @@ export const syncService = {
         body: JSON.stringify({ tabela, itens, operadorId: operador.id }),
       });
 
-      // 1. LER O TEXTO BRUTO
-      const text = await response.text();
+      const responseText = await response.text();
+      let result;
       
-      // 2. IMPRIMIR NO CONSOLE PARA VOCÊ VER
-      console.log(`🔥 RESPOSTA DO SERVIDOR (${tabela}):`, text);
-
-      // 3. TENTAR LER COMO JSON
-      let json;
       try {
-        json = JSON.parse(text);
+        result = JSON.parse(responseText);
       } catch (e) {
-        console.warn('⚠️ Resposta não é JSON. Ignorando item para não travar.');
-        return; // Se não for JSON, aborta sem erro para limpar a fila
+        // Se não for JSON, loga o aviso mas não trava o app
+        console.warn(`⚠️ Resposta inválida do servidor ao deletar: ${responseText}`);
+        return; 
       }
 
       if (!response.ok) {
-        throw new Error(json.erro || json.message || `Erro ${response.status}`);
+        // Se o servidor recusou, loga o erro mas remove da fila para não travar
+        console.warn(`⚠️ Erro no servidor: ${result.erro || result.message}`);
+        return;
       }
 
-      console.log(`✅ Deletados: ${json.deletados}`);
+      console.log(`✅ Sucesso! ${result.deletados} itens deletados.`);
 
     } catch (error) {
-      console.error(`❌ Falha ao deletar ${tabela}:`, error);
-      throw error;
+      console.error(`❌ Erro de conexão ao deletar ${tabela}:`, error);
+      // Se for erro de rede, joga o erro para tentar depois
+      if (String(error).includes('Network request failed')) {
+        throw error;
+      }
     }
   }
 };

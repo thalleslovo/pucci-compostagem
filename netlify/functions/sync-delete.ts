@@ -7,43 +7,37 @@ const supabase = createClient(
 );
 
 export const handler: Handler = async (event) => {
+  // CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
     'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-  if (event.httpMethod === 'OPTIONS') {
-    return { statusCode: 200, headers, body: '' };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
   try {
     const body = JSON.parse(event.body || '{}');
     const { tabela, itens } = body;
 
-    console.log(`🗑️ Pedido de delete: Tabela '${tabela}', ${itens?.length} itens`);
-
     if (!itens || itens.length === 0) {
       return { statusCode: 200, headers, body: JSON.stringify({ deletados: 0 }) };
     }
 
-    // ✅ MAPA DE TABELAS CORRIGIDO
+    // ✅ O SEGREDO ESTÁ AQUI: MAPEAR O NOME
     const mapaTabelas: Record<string, string> = {
-      // Quando o App pede 'leiras', o Backend apaga em 'leiras_formadas'
-      'leira': 'leiras_formadas',
-      'leiras': 'leiras_formadas',
-      
+      'leira': 'leiras_formadas',      // <--- IMPORTANTE
+      'leiras': 'leiras_formadas',     // <--- IMPORTANTE
       'clima': 'monitoramento_clima',
       'monitoramento': 'monitoramentos',
-      'material': 'materiais_registrados',
-      'materiais': 'materiais_registrados'
+      'material': 'materiais_registrados'
     };
 
-    // Pega o nome real ou usa o que veio (fallback)
+    // Se não achar no mapa, usa o nome original
     const tabelaReal = mapaTabelas[tabela] || tabela;
     const idsParaDeletar = itens.map((i: any) => i.id);
 
-    console.log(`🎯 Deletando da tabela real: '${tabelaReal}'`);
+    console.log(`🗑️ Deletando ${idsParaDeletar.length} itens de '${tabelaReal}'`);
 
     const { error, count } = await supabase
       .from(tabelaReal)
@@ -52,10 +46,13 @@ export const handler: Handler = async (event) => {
 
     if (error) {
       console.error('❌ Erro Supabase:', error.message);
-      throw error;
+      // Retorna o erro detalhado para o App não dar "undefined"
+      return {
+        statusCode: 400, // Bad Request
+        headers,
+        body: JSON.stringify({ erro: error.message }) 
+      };
     }
-
-    console.log(`✅ Sucesso! ${count} registros apagados de ${tabelaReal}.`);
 
     return {
       statusCode: 200,
@@ -68,10 +65,7 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ 
-        erro: error.message || 'Erro interno ao deletar',
-        sucesso: false
-      }),
+      body: JSON.stringify({ erro: error.message || 'Erro interno' }),
     };
   }
 };
