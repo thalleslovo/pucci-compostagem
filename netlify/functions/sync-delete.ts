@@ -2,12 +2,11 @@ import { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 
 const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_URL || "https://xpcxuonqffewtsmwlato.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
 );
 
 export const handler: Handler = async (event) => {
-  // CORS
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
@@ -20,39 +19,44 @@ export const handler: Handler = async (event) => {
     const body = JSON.parse(event.body || '{}');
     const { tabela, itens } = body;
 
+    console.log(`🗑️ RECEBIDO PEDIDO DE DELETE: Tabela '${tabela}'`);
+
     if (!itens || itens.length === 0) {
       return { statusCode: 200, headers, body: JSON.stringify({ deletados: 0 }) };
     }
 
-    // ✅ O SEGREDO ESTÁ AQUI: MAPEAR O NOME
+    // ✅ MAPA DE TRADUÇÃO (CRUCIAL)
     const mapaTabelas: Record<string, string> = {
-      'leira': 'leiras_formadas',      // <--- IMPORTANTE
-      'leiras': 'leiras_formadas',     // <--- IMPORTANTE
+      'leira': 'leiras_formadas',      // <--- O App manda 'leira'
+      'leiras': 'leiras_formadas',     // <--- O App manda 'leiras'
       'clima': 'monitoramento_clima',
       'monitoramento': 'monitoramentos',
       'material': 'materiais_registrados'
     };
 
-    // Se não achar no mapa, usa o nome original
+    // Descobre o nome real
     const tabelaReal = mapaTabelas[tabela] || tabela;
     const idsParaDeletar = itens.map((i: any) => i.id);
 
-    console.log(`🗑️ Deletando ${idsParaDeletar.length} itens de '${tabelaReal}'`);
+    console.log(`🎯 Tabela Real no Banco: '${tabelaReal}'`);
+    console.log(`🔥 IDs para apagar:`, idsParaDeletar);
 
+    // Tenta deletar
     const { error, count } = await supabase
       .from(tabelaReal)
       .delete({ count: 'exact' })
       .in('id', idsParaDeletar);
 
     if (error) {
-      console.error('❌ Erro Supabase:', error.message);
-      // Retorna o erro detalhado para o App não dar "undefined"
+      console.error('❌ ERRO SUPABASE:', error.message);
       return {
-        statusCode: 400, // Bad Request
+        statusCode: 400,
         headers,
-        body: JSON.stringify({ erro: error.message }) 
+        body: JSON.stringify({ erro: `Erro no Banco: ${error.message}` }) 
       };
     }
+
+    console.log(`✅ SUCESSO! ${count} itens apagados.`);
 
     return {
       statusCode: 200,
@@ -61,11 +65,11 @@ export const handler: Handler = async (event) => {
     };
 
   } catch (error: any) {
-    console.error('❌ Erro Geral:', error);
+    console.error('❌ ERRO GERAL:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ erro: error.message || 'Erro interno' }),
+      body: JSON.stringify({ erro: `Erro Interno: ${error.message}` }),
     };
   }
 };
