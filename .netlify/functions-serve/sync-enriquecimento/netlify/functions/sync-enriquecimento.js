@@ -13629,106 +13629,83 @@ var supabase = createClient(
   process.env.SUPABASE_URL || "https://xpcxuonqffewtsmwlato.supabase.co",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
 );
+function converterDataParaISO(dataBR) {
+  if (!dataBR) return null;
+  if (dataBR.includes("-")) return dataBR;
+  const partes = dataBR.split("/");
+  if (partes.length !== 3) return null;
+  return `${partes[2]}-${partes[1]}-${partes[0]}`;
+}
 var handler = async (event) => {
-  console.log("\u{1F504} Fun\xE7\xE3o sync-enriquecimento acionada");
-  console.log("\u{1F50D} DEBUG - body recebido:", JSON.stringify(event.body));
-  if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "M\xE9todo n\xE3o permitido" })
-    };
-  }
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+  if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers, body: "" };
   try {
     const body = JSON.parse(event.body || "{}");
     const enriquecimentos = body.enriquecimentos || [];
-    const operadorNome = body.operadorNome || "Desconhecido";
     let operadorId = body.operadorId;
-    if (!operadorId || operadorId === "operador-001" || !operadorId.includes("-")) {
-      operadorId = "e1305705-7be9-4e67-9ab1-6ef5ddd449fb";
-      console.log("\u26A0\uFE0F operadorId inv\xE1lido recebido, usando UUID padr\xE3o");
+    if (!operadorId || operadorId.length < 30) {
+      operadorId = "116609f9-53c2-4289-9a63-0174fad8148e";
     }
-    console.log(`\u{1F4E4} Recebido: ${enriquecimentos.length} enriquecimentos do operador ${operadorNome}`);
-    console.log(`\u{1F50D} DEBUG - operadorId final: ${operadorId}`);
+    console.log(`\u{1F4E5} Processando ${enriquecimentos.length} itens para a tabela enriquecimento_leira...`);
     if (enriquecimentos.length === 0) {
+      return { statusCode: 200, headers, body: JSON.stringify({ message: "Vazio" }) };
+    }
+    const agora = (/* @__PURE__ */ new Date()).toISOString();
+    const erros = [];
+    for (const item of enriquecimentos) {
+      const dataISO = converterDataParaISO(item.dataEnriquecimento);
+      const payload = {
+        id: item.id,
+        usuario_id: operadorId,
+        // FK para auth.users
+        leiraid: item.leiraId,
+        // Nome exato da coluna (tudo minúsculo)
+        data_enriquecimento: dataISO,
+        // Formato YYYY-MM-DD
+        hora_enriquecimento: item.horaEnriquecimento || null,
+        peso_anterior: item.pesoAnterior,
+        peso_adicionado: item.pesoAdicionado,
+        peso_novo: item.pesoNovo,
+        numero_mtr: item.numeroMTR || null,
+        origem: item.origem || null,
+        observacoes: item.observacoes || null,
+        sincronizado: true,
+        sincronizado_em: agora,
+        criado_em: agora,
+        atualizado_em: agora
+      };
+      const { error } = await supabase.from("enriquecimento_leira").upsert(payload, { onConflict: "id" });
+      if (error) {
+        console.error(`\u274C Erro DB (ID: ${item.id}):`, error.message);
+        erros.push(error.message);
+      }
+    }
+    if (erros.length > 0) {
       return {
-        statusCode: 200,
+        statusCode: 500,
+        headers,
         body: JSON.stringify({
-          sucesso: true,
-          sincronizados: 0,
-          detalhes: []
+          sucesso: false,
+          erro: `Erro no Banco: ${erros[0]}`
+          // Retorna o primeiro erro para facilitar debug
         })
       };
     }
-    const resultados = [];
-    let sincronizados = 0;
-    const agora = (/* @__PURE__ */ new Date()).toISOString();
-    for (const enriquecimento of enriquecimentos) {
-      try {
-        console.log(`\u{1F4AA} Processando enriquecimento da leira: ${enriquecimento.leiraId}`);
-        console.log(`\u{1F50D} DEBUG - Usando operadorId: ${operadorId}`);
-        const { data, error } = await supabase.from("enriquecimento_leira").insert({
-          id: enriquecimento.id,
-          usuario_id: operadorId,
-          leiraid: enriquecimento.leiraId,
-          data_enriquecimento: enriquecimento.dataEnriquecimento,
-          hora_enriquecimento: enriquecimento.horaEnriquecimento || null,
-          peso_anterior: enriquecimento.pesoAnterior,
-          peso_adicionado: enriquecimento.pesoAdicionado,
-          peso_novo: enriquecimento.pesoNovo,
-          numero_mtr: enriquecimento.numeroMTR || null,
-          origem: enriquecimento.origem || null,
-          observacoes: enriquecimento.observacoes || null,
-          sincronizado: true,
-          sincronizado_em: agora,
-          criado_em: agora,
-          atualizado_em: agora
-        });
-        if (error) {
-          console.error(`\u274C Erro ao inserir enriquecimento:`, error.message);
-          resultados.push({
-            id: enriquecimento.id,
-            leiraId: enriquecimento.leiraId,
-            status: "erro",
-            erro: error.message
-          });
-        } else {
-          console.log(`\u2705 Enriquecimento inserido com sucesso`);
-          sincronizados++;
-          resultados.push({
-            id: enriquecimento.id,
-            leiraId: enriquecimento.leiraId,
-            status: "inserido"
-          });
-        }
-      } catch (err) {
-        console.error(`\u274C Erro ao processar enriquecimento:`, err);
-        resultados.push({
-          id: enriquecimento.id,
-          leiraId: enriquecimento.leiraId,
-          status: "erro",
-          erro: String(err)
-        });
-      }
-    }
-    console.log(`\u2705 Sincroniza\xE7\xE3o conclu\xEDda: ${sincronizados}/${enriquecimentos.length} inseridos`);
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        sucesso: true,
-        sincronizados,
-        erros: resultados.filter((r) => r.status === "erro").length,
-        detalhes: resultados
-      })
+      headers,
+      body: JSON.stringify({ sucesso: true })
     };
   } catch (error) {
-    console.error("\u274C Erro geral na sincroniza\xE7\xE3o:", error);
+    console.error("\u274C Erro Cr\xEDtico:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        sucesso: false,
-        erro: "Erro ao sincronizar dados",
-        detalhes: String(error)
-      })
+      headers,
+      body: JSON.stringify({ erro: error.message })
     };
   }
 };

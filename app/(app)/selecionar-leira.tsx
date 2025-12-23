@@ -216,7 +216,7 @@ export default function SelecionarLeiraScreen() {
       <SafeAreaView style={styles.container}>
         <View style={styles.header}>
           <TouchableOpacity onPress={() => router.back()}>
-            <Text style={styles.backIcon}>←</Text>
+            <Text style={styles.backIcon}></Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Monitorar Leira</Text>
           <View />

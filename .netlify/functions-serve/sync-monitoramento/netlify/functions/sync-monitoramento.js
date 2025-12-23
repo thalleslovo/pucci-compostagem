@@ -13645,11 +13645,20 @@ function extrairTemperaturas(temperaturas) {
   return { topo, meio, fundo };
 }
 var handler = async (event) => {
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "" };
+  }
   console.log("\u{1F504} Fun\xE7\xE3o sync-monitoramento acionada");
-  console.log("\u{1F50D} DEBUG - body recebido:", JSON.stringify(event.body));
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
+      headers,
+      // <--- Importante devolver headers no erro também
       body: JSON.stringify({ error: "M\xE9todo n\xE3o permitido" })
     };
   }
@@ -13658,10 +13667,10 @@ var handler = async (event) => {
     const monitoramentos = body.monitoramentos || [];
     const operadorNome = body.operadorNome || "Desconhecido";
     console.log(`\u{1F4E4} Recebido: ${monitoramentos.length} monitoramentos do operador ${operadorNome}`);
-    console.log(`\u{1F50D} DEBUG - Usando usuarioId: ${USUARIO_ID}`);
     if (monitoramentos.length === 0) {
       return {
         statusCode: 200,
+        headers,
         body: JSON.stringify({
           sucesso: true,
           sincronizados: 0,
@@ -13679,6 +13688,7 @@ var handler = async (event) => {
         const { data, error } = await supabase.from("monitoramento_leira").upsert({
           id: monitoramento.id,
           usuario_id: USUARIO_ID,
+          // Seu ID fixo
           leiraid: monitoramento.leiraId,
           data: monitoramento.data,
           hora: monitoramento.hora || null,
@@ -13730,6 +13740,8 @@ var handler = async (event) => {
     console.log(`\u2705 Sincroniza\xE7\xE3o conclu\xEDda: ${sincronizados}/${monitoramentos.length} sincronizados`);
     return {
       statusCode: 200,
+      headers,
+      // <--- OBRIGATÓRIO PARA FUNCIONAR NO APP
       body: JSON.stringify({
         sucesso: true,
         sincronizados,
@@ -13741,6 +13753,8 @@ var handler = async (event) => {
     console.error("\u274C Erro geral na sincroniza\xE7\xE3o:", error);
     return {
       statusCode: 500,
+      headers,
+      // <--- OBRIGATÓRIO PARA FUNCIONAR NO APP
       body: JSON.stringify({
         sucesso: false,
         erro: "Erro ao sincronizar dados",

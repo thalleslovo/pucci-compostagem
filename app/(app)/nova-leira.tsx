@@ -7,6 +7,9 @@ import {
   TouchableOpacity,
   Alert,
   ActivityIndicator,
+  TextInput,
+  KeyboardAvoidingView,
+  Platform
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter, useFocusEffect } from 'expo-router';
@@ -24,6 +27,8 @@ const PALETTE = {
   cinza: '#666666',
   cinzaClaro: '#EEEEEE',
   cinzaClaro2: '#F5F5F5',
+  azulPiscinao: '#0288D1',
+  azulClaro: '#E1F5FE',
   sucesso: '#4CAF50',
   warning: '#FF9800',
   erro: '#D32F2F',
@@ -47,9 +52,9 @@ interface Leira {
   bagaço: number;
   status: string;
   totalBiossólido: number;
+  tipoFormacao: 'MTR' | 'MANUAL';
 }
 
-// ===== FUNÇÃO DE CORREÇÃO DE PESO =====
 const parsePeso = (valor: string | number): number => {
   if (!valor) return 0;
   if (typeof valor === 'number') return valor;
@@ -58,7 +63,6 @@ const parsePeso = (valor: string | number): number => {
   return isNaN(numero) ? 0 : numero;
 };
 
-// ===== FUNÇÕES UTILITÁRIAS =====
 const getDiasPassados = (data: string): number => {
   try {
     const [dia, mês, ano] = data.split('/').map(Number);
@@ -94,7 +98,11 @@ const getStatusLabel = (status: string): string => {
 };
 
 const calcularLote = (biossólidos: BiossólidoEntry[]): string => {
-  if (biossólidos.length === 0) return 'N/A';
+  if (biossólidos.length === 0) {
+    const hoje = new Date();
+    const mes = String(hoje.getMonth() + 1).padStart(2, '0');
+    return `${mes}/${hoje.getFullYear()}`;
+  }
   const datasEmMs = biossólidos.map((item) => {
     const [dia, mês, ano] = item.data.split('/').map(Number);
     return new Date(ano, mês - 1, dia).getTime();
@@ -113,6 +121,11 @@ export default function NovaLeiraScreen() {
   const [showForm, setShowForm] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Estados Modo Manual
+  const [modoManual, setModoManual] = useState(false);
+  const [pesoManualBio, setPesoManualBio] = useState('');
+  const [pesoManualBagaco, setPesoManualBagaco] = useState('12');
+
   useFocusEffect(
     React.useCallback(() => {
       loadData();
@@ -124,7 +137,12 @@ export default function NovaLeiraScreen() {
       setLoading(true);
       const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
       const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
-      const biossólidosCarregados = materiais.filter((item: any) => item.tipoMaterial === 'Biossólido');
+      
+      const biossólidosCarregados = materiais.filter((item: any) => 
+        item.tipoMaterial === 'Biossólido' || 
+        (item.origem && item.origem.toLowerCase().includes('piscin'))
+      );
+      
       setBiossólidos(biossólidosCarregados);
 
       const leirasRegistradas = await AsyncStorage.getItem('leirasFormadas');
@@ -141,34 +159,73 @@ export default function NovaLeiraScreen() {
     if (selectedBiossólidos.includes(id)) {
       setSelectedBiossólidos(selectedBiossólidos.filter((item) => item !== id));
     } else {
-      if (selectedBiossólidos.length < 3) {
+      if (selectedBiossólidos.length < 4) {
         setSelectedBiossólidos([...selectedBiossólidos, id]);
       } else {
-        Alert.alert('Limite', 'Máximo de 3 biossólidos por leira');
+        Alert.alert('Limite', 'Máximo de 4 itens por leira');
       }
     }
   };
 
   const handleFormarLeira = async () => {
-    if (selectedBiossólidos.length !== 3) {
-      Alert.alert('Erro', 'Você precisa selecionar exatamente 3 biossólidos');
-      return;
+    let novaLeira: Leira;
+
+    if (modoManual) {
+      const pesoBio = parsePeso(pesoManualBio);
+      const pesoBagaco = parsePeso(pesoManualBagaco);
+
+      if (pesoBio <= 0) {
+        Alert.alert('Atenção', 'Informe o peso do Biossólido/Piscinão.');
+        return;
+      }
+      if (pesoBagaco <= 0) {
+        Alert.alert('Atenção', 'Informe o peso do Bagaço.');
+        return;
+      }
+
+      const itemManual: BiossólidoEntry = {
+        id: `manual-${Date.now()}`,
+        data: new Date().toLocaleDateString('pt-BR'),
+        numeroMTR: 'MANUAL',
+        peso: pesoBio.toString(),
+        origem: 'Piscinão/Manual',
+        tipoMaterial: 'Biossólido'
+      };
+
+      novaLeira = {
+        id: Date.now().toString(),
+        numeroLeira: leiras.length + 1,
+        lote: calcularLote([]),
+        dataFormacao: new Date().toLocaleDateString('pt-BR'),
+        biossólidos: [itemManual],
+        bagaço: pesoBagaco,
+        status: 'formada',
+        totalBiossólido: pesoBio,
+        tipoFormacao: 'MANUAL'
+      };
+
+    } else {
+      if (selectedBiossólidos.length < 3 || selectedBiossólidos.length > 4) {
+        Alert.alert('Atenção', 'Selecione 3 ou 4 viagens para formar a leira.');
+        return;
+      }
+
+      const biossólidosSelecionados = biossólidos.filter((item) => selectedBiossólidos.includes(item.id));
+      const totalBiossólido = biossólidosSelecionados.reduce((acc, item) => acc + parsePeso(item.peso), 0);
+      const lote = calcularLote(biossólidosSelecionados);
+
+      novaLeira = {
+        id: Date.now().toString(),
+        numeroLeira: leiras.length + 1,
+        lote: lote,
+        dataFormacao: new Date().toLocaleDateString('pt-BR'),
+        biossólidos: biossólidosSelecionados,
+        bagaço: 12,
+        status: 'formada',
+        totalBiossólido: totalBiossólido,
+        tipoFormacao: 'MTR'
+      };
     }
-
-    const biossólidosSelecionados = biossólidos.filter((item) => selectedBiossólidos.includes(item.id));
-    const totalBiossólido = biossólidosSelecionados.reduce((acc, item) => acc + parsePeso(item.peso), 0);
-    const lote = calcularLote(biossólidosSelecionados);
-
-    const novaLeira: Leira = {
-      id: Date.now().toString(),
-      numeroLeira: leiras.length + 1,
-      lote: lote,
-      dataFormacao: new Date().toLocaleDateString('pt-BR'),
-      biossólidos: biossólidosSelecionados,
-      bagaço: 12,
-      status: 'formada',
-      totalBiossólido: totalBiossólido,
-    };
 
     try {
       const leirasRegistradas = await AsyncStorage.getItem('leirasFormadas');
@@ -178,14 +235,18 @@ export default function NovaLeiraScreen() {
       
       await syncService.adicionarFila('leira', novaLeira);
 
-      const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
-      const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
-      const materiaisRestantes = materiais.filter((item: any) => !selectedBiossólidos.includes(item.id));
-      await AsyncStorage.setItem('materiaisRegistrados', JSON.stringify(materiaisRestantes));
+      if (!modoManual) {
+        const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
+        const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
+        const materiaisRestantes = materiais.filter((item: any) => !selectedBiossólidos.includes(item.id));
+        await AsyncStorage.setItem('materiaisRegistrados', JSON.stringify(materiaisRestantes));
+        setBiossólidos(biossólidos.filter((item) => !selectedBiossólidos.includes(item.id)));
+      }
 
       setLeiras([...leiras, novaLeira]);
-      setBiossólidos(biossólidos.filter((item) => !selectedBiossólidos.includes(item.id)));
       setSelectedBiossólidos([]);
+      setPesoManualBio('');
+      setPesoManualBagaco('12');
       setShowForm(false);
 
       Alert.alert('Sucesso! ✅', `Leira #${novaLeira.numeroLeira} formada com sucesso!`);
@@ -194,41 +255,37 @@ export default function NovaLeiraScreen() {
     }
   };
 
-  // ===== EXCLUIR LEIRA (COM LOGS DE DEBUG) =====
   const handleExcluirLeira = (leira: Leira) => {
-    console.log('🗑️ Função handleExcluirLeira chamada para:', leira.numeroLeira);
-    
     Alert.alert(
       'Excluir Leira',
-      `Tem certeza que deseja excluir a Leira #${leira.numeroLeira}? Os biossólidos voltarão para o estoque.`,
+      `Tem certeza que deseja excluir a Leira #${leira.numeroLeira}?`,
       [
-        { text: 'Cancelar', style: 'cancel', onPress: () => console.log('❌ Cancelou exclusão') },
+        { text: 'Cancelar', style: 'cancel' },
         {
           text: 'Excluir',
           style: 'destructive',
           onPress: async () => {
-            console.log('✅ Confirmou exclusão');
             try {
-              // 1. Remover da lista local
               const novasLeiras = leiras.filter(l => l.id !== leira.id);
               await AsyncStorage.setItem('leirasFormadas', JSON.stringify(novasLeiras));
               setLeiras(novasLeiras);
 
-              // 2. Devolver biossólidos para o estoque local
-              const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
-              const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
-              const novosMateriais = [...materiais, ...leira.biossólidos];
-              await AsyncStorage.setItem('materiaisRegistrados', JSON.stringify(novosMateriais));
-              
-              const biosAtualizados = novosMateriais.filter((m: any) => m.tipoMaterial === 'Biossólido');
-              setBiossólidos(biosAtualizados);
+              if (leira.tipoFormacao !== 'MANUAL') {
+                const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
+                const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
+                const novosMateriais = [...materiais, ...leira.biossólidos];
+                await AsyncStorage.setItem('materiaisRegistrados', JSON.stringify(novosMateriais));
+                
+                const biosAtualizados = novosMateriais.filter((item: any) => 
+                  item.tipoMaterial === 'Biossólido' || 
+                  (item.origem && item.origem.toLowerCase().includes('piscin'))
+                );
+                setBiossólidos(biosAtualizados);
+              }
 
-              // 3. Sync
               await syncService.adicionarFila('leira_deletada' as any, { id: leira.id });
-
-              Alert.alert('Excluída', 'Leira removida e materiais devolvidos ao estoque.');
+              Alert.alert('Excluída', 'Leira removida.');
             } catch (error) {
-              console.error('Erro ao excluir:', error);
               Alert.alert('Erro', 'Falha ao excluir leira.');
             }
           }
@@ -237,20 +294,17 @@ export default function NovaLeiraScreen() {
     );
   };
 
-  const totalBioSelecionado = biossólidos
-    .filter((item) => selectedBiossólidos.includes(item.id))
-    .reduce((acc, item) => acc + parsePeso(item.peso), 0);
+  const totalBioSelecionado = modoManual 
+    ? parsePeso(pesoManualBio) 
+    : biossólidos.filter((item) => selectedBiossólidos.includes(item.id)).reduce((acc, item) => acc + parsePeso(item.peso), 0);
 
-  const lotePreview = calcularLote(
-    biossólidos.filter((item) => selectedBiossólidos.includes(item.id))
-  );
+  const totalBagaco = modoManual ? parsePeso(pesoManualBagaco) : 12;
 
   if (loading) {
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={PALETTE.verdePrimario} />
-          <Text style={styles.loadingText}>Carregando dados...</Text>
         </View>
       </SafeAreaView>
     );
@@ -258,6 +312,7 @@ export default function NovaLeiraScreen() {
 
   return (
     <SafeAreaView style={styles.container}>
+      <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : 'height'} style={{ flex: 1 }}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
@@ -270,93 +325,125 @@ export default function NovaLeiraScreen() {
         <View style={styles.infoBox}>
           <Text style={styles.infoIcon}>🌱</Text>
           <View style={styles.infoContent}>
-            <Text style={styles.infoTitle}>Crie uma nova leira</Text>
-            <Text style={styles.infoText}>Selecione 3 biossólidos + 12 ton de bagaço</Text>
+            <Text style={styles.infoTitle}>Nova Leira</Text>
+            <Text style={styles.infoText}>Use MTRs do estoque ou registre manualmente (Piscinão)</Text>
           </View>
         </View>
 
         <View style={styles.statsContainer}>
           <StatBox label="Leiras Criadas" value={leiras.length.toString()} color={PALETTE.verdePrimario} />
-          <StatBox label="Biossólidos Disponíveis" value={biossólidos.length.toString()} color={biossólidos.length >= 3 ? PALETTE.sucesso : PALETTE.warning} />
+          <StatBox label="Mat. Disponível" value={biossólidos.length.toString()} color={biossólidos.length >= 3 ? PALETTE.sucesso : PALETTE.warning} />
         </View>
-
-        {biossólidos.length === 0 && !showForm && (
-          <View style={styles.warningBox}>
-            <Text style={styles.warningIcon}>⚠️</Text>
-            <View style={styles.warningContent}>
-              <Text style={styles.warningTitle}>Nenhum biossólido disponível</Text>
-              <Text style={styles.warningText}>Vá para "Entrada de Material" e registre pelo menos 3 biossólidos</Text>
-            </View>
-          </View>
-        )}
 
         {showForm ? (
           <View style={styles.formCard}>
-            <Text style={styles.formTitle}>Selecione 3 Biossólidos (Disponíveis: {biossólidos.length})</Text>
-            <View style={styles.biossólidosList}>
-              {biossólidos.length > 0 ? (
-                biossólidos.map((item) => (
-                  <TouchableOpacity
-                    key={item.id}
-                    style={[styles.biossólidoItem, selectedBiossólidos.includes(item.id) && styles.biossólidoItemSelected]}
-                    onPress={() => handleSelectBiossólido(item.id)}
-                  >
-                    <View style={styles.biossólidoCheckbox}>
-                      {selectedBiossólidos.includes(item.id) && <Text style={styles.checkmark}>✓</Text>}
-                    </View>
-                    <View style={styles.biossólidoInfo}>
-                      <View style={styles.biossólidoHeader}>
-                        <Text style={styles.biossólidoMTR}>{item.numeroMTR}</Text>
-                        <Text style={styles.biossólidoData}>{item.data}</Text>
-                      </View>
-                      <View style={styles.biossólidoFooter}>
-                        <Text style={styles.biossólidoOrigem}>{item.origem === 'Sabesp' ? '💧' : '🏭'} {item.origem}</Text>
-                        <Text style={styles.biossólidoPeso}>{item.peso} ton</Text>
-                      </View>
-                    </View>
-                  </TouchableOpacity>
-                ))
-              ) : (
-                <View style={styles.emptyBiossólidos}>
-                  <Text style={styles.emptyIcon}>📭</Text>
-                  <Text style={styles.emptyText}>Nenhum biossólido registrado</Text>
-                </View>
-              )}
+            <Text style={styles.formTitle}>Nova Leira #{leiras.length + 1}</Text>
+
+            <View style={styles.modeSelector}>
+              <TouchableOpacity 
+                style={[styles.modeBtn, !modoManual && styles.modeBtnActive]} 
+                onPress={() => setModoManual(false)}
+              >
+                <Text style={[styles.modeBtnText, !modoManual && styles.modeBtnTextActive]}>Selecionar MTRs</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.modeBtn, modoManual && styles.modeBtnActive]} 
+                onPress={() => setModoManual(true)}
+              >
+                <Text style={[styles.modeBtnText, modoManual && styles.modeBtnTextActive]}>Manual / Piscinão</Text>
+              </TouchableOpacity>
             </View>
 
-            {selectedBiossólidos.length > 0 && (
-              <View style={styles.previewCard}>
-                <Text style={styles.previewTitle}>Preview da Leira</Text>
-                <View style={styles.previewItem}>
-                  <Text style={styles.previewLabel}>Lote</Text>
-                  <Text style={styles.previewValue}>{lotePreview}</Text>
+            {modoManual ? (
+              <View style={styles.manualInputContainer}>
+                <Text style={styles.inputLabel}>Peso do Material (Piscinão/Bio)</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    value={pesoManualBio}
+                    onChangeText={setPesoManualBio}
+                    placeholder="0.0"
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.unitText}>ton</Text>
                 </View>
-                <View style={styles.previewItem}>
-                  <Text style={styles.previewLabel}>Biossólido Total</Text>
-                  <Text style={styles.previewValue}>{totalBioSelecionado.toFixed(1)} ton</Text>
-                </View>
-                <View style={styles.previewItem}>
-                  <Text style={styles.previewLabel}>Bagaço de Cana</Text>
-                  <Text style={styles.previewValue}>12 ton</Text>
-                </View>
-                <View style={styles.previewItem}>
-                  <Text style={styles.previewLabel}>Total da Leira</Text>
-                  <Text style={styles.previewValue}>{(totalBioSelecionado + 12).toFixed(1)} ton</Text>
+
+                <Text style={styles.inputLabel}>Peso do Bagaço</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    value={pesoManualBagaco}
+                    onChangeText={setPesoManualBagaco}
+                    placeholder="12.0"
+                    keyboardType="numeric"
+                  />
+                  <Text style={styles.unitText}>ton</Text>
                 </View>
               </View>
+            ) : (
+              <View style={styles.biossólidosList}>
+                <Text style={styles.subLabel}>Selecione 3 ou 4 itens da lista:</Text>
+                {biossólidos.length > 0 ? (
+                  biossólidos.map((item) => (
+                    <TouchableOpacity
+                      key={item.id}
+                      style={[
+                        styles.biossólidoItem, 
+                        selectedBiossólidos.includes(item.id) && styles.biossólidoItemSelected
+                      ]}
+                      onPress={() => handleSelectBiossólido(item.id)}
+                    >
+                      <View style={styles.biossólidoCheckbox}>
+                        {selectedBiossólidos.includes(item.id) && <Text style={styles.checkmark}>✓</Text>}
+                      </View>
+                      <View style={styles.biossólidoInfo}>
+                        <View style={styles.biossólidoHeader}>
+                          <Text style={styles.biossólidoMTR}>{item.numeroMTR || 'S/ MTR'}</Text>
+                          <Text style={styles.biossólidoData}>{item.data}</Text>
+                        </View>
+                        <View style={styles.biossólidoFooter}>
+                          <Text style={styles.biossólidoOrigem}>
+                            {item.origem?.includes('Piscin') ? '🌊' : '🏭'} {item.origem}
+                          </Text>
+                          <Text style={styles.biossólidoPeso}>{item.peso} ton</Text>
+                        </View>
+                      </View>
+                    </TouchableOpacity>
+                  ))
+                ) : (
+                  <View style={styles.emptyBiossólidos}>
+                    <Text style={styles.emptyText}>Estoque vazio.</Text>
+                  </View>
+                )}
+              </View>
             )}
+
+            <View style={styles.previewCard}>
+              <Text style={styles.previewTitle}>Resumo da Leira</Text>
+              <View style={styles.previewItem}>
+                <Text style={styles.previewLabel}>Material Total</Text>
+                <Text style={styles.previewValue}>{totalBioSelecionado.toFixed(1)} ton</Text>
+              </View>
+              <View style={styles.previewItem}>
+                <Text style={styles.previewLabel}>Bagaço</Text>
+                <Text style={styles.previewValue}>{totalBagaco} ton</Text>
+              </View>
+              <View style={styles.previewItem}>
+                <Text style={styles.previewLabel}>Total Estimado</Text>
+                <Text style={styles.previewValue}>{(totalBioSelecionado + Number(totalBagaco)).toFixed(1)} ton</Text>
+              </View>
+            </View>
 
             <View style={styles.buttonGroup}>
               <Button title="Cancelar" onPress={() => { setShowForm(false); setSelectedBiossólidos([]); }} fullWidth />
               <View style={styles.buttonSpacer} />
-              <Button title={`Formar Leira #${leiras.length + 1}`} onPress={handleFormarLeira} fullWidth variant="primary" />
+              <Button title="Confirmar Formação" onPress={handleFormarLeira} fullWidth variant="primary" />
             </View>
           </View>
         ) : (
           <TouchableOpacity
-            style={[styles.addBtn, biossólidos.length < 3 && styles.addBtnDisabled]}
+            style={styles.addBtn}
             onPress={() => setShowForm(true)}
-            disabled={biossólidos.length < 3}
           >
             <Text style={styles.addBtnIcon}>+</Text>
             <Text style={styles.addBtnText}>Formar Nova Leira</Text>
@@ -364,23 +451,17 @@ export default function NovaLeiraScreen() {
         )}
 
         <View style={styles.listSection}>
-          <Text style={styles.listTitle}>Leiras em Processo</Text>
-          {leiras.length > 0 ? (
-            leiras.map((leira) => (
-              <LeiraCard 
-                key={leira.id} 
-                leira={leira} 
-                onDelete={() => handleExcluirLeira(leira)} 
-              />
-            ))
-          ) : (
-            <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>🚜</Text>
-              <Text style={styles.emptyText}>Nenhuma leira formada ainda</Text>
-            </View>
-          )}
+          <Text style={styles.listTitle}>Leiras Recentes</Text>
+          {leiras.map((leira) => (
+            <LeiraCard 
+              key={leira.id} 
+              leira={leira} 
+              onDelete={() => handleExcluirLeira(leira)} 
+            />
+          ))}
         </View>
       </ScrollView>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
@@ -394,7 +475,6 @@ function StatBox({ label, value, color }: { label: string; value: string; color:
   );
 }
 
-// ===== LEIRA CARD (CORRIGIDO) =====
 function LeiraCard({ leira, onDelete }: { leira: Leira, onDelete: () => void }) {
   const router = useRouter();
   const diasPassados = getDiasPassados(leira.dataFormacao);
@@ -405,28 +485,23 @@ function LeiraCard({ leira, onDelete }: { leira: Leira, onDelete: () => void }) 
         <View>
           <View style={styles.leiraNumberRow}>
             <Text style={styles.leiraNumber}>Leira #{leira.numeroLeira}</Text>
-            <View style={styles.loteBadge}>
-              <Text style={styles.loteBadgeText}>Lote {leira.lote}</Text>
-            </View>
+            {leira.tipoFormacao === 'MANUAL' ? (
+              <View style={[styles.loteBadge, { backgroundColor: PALETTE.azulPiscinao }]}>
+                <Text style={styles.loteBadgeText}>MANUAL</Text>
+              </View>
+            ) : (
+              <View style={[styles.loteBadge, { backgroundColor: PALETTE.terracota }]}>
+                <Text style={styles.loteBadgeText}>Lote {leira.lote}</Text>
+              </View>
+            )}
           </View>
           <Text style={styles.leiraData}>{leira.dataFormacao}</Text>
         </View>
-        
-        {/* BOTÕES DE AÇÃO */}
         <View style={{flexDirection: 'row', gap: 10}}>
-            <TouchableOpacity 
-                style={styles.iconButton}
-                onPress={() => router.push({ pathname: '/(app)/editar-leira', params: { id: leira.id } })}
-            >
+            <TouchableOpacity style={styles.iconButton} onPress={() => router.push({ pathname: '/(app)/editar-leira', params: { id: leira.id } })}>
                 <Text style={{fontSize: 18}}>✏️</Text>
             </TouchableOpacity>
-            
-            {/* BOTÃO EXCLUIR COM ÁREA DE TOQUE GARANTIDA */}
-            <TouchableOpacity 
-                style={[styles.iconButton, {backgroundColor: '#FFEBEE'}]}
-                onPress={onDelete}
-                activeOpacity={0.7}
-            >
+            <TouchableOpacity style={[styles.iconButton, {backgroundColor: '#FFEBEE'}]} onPress={onDelete}>
                 <Text style={{fontSize: 18}}>🗑️</Text>
             </TouchableOpacity>
         </View>
@@ -436,6 +511,7 @@ function LeiraCard({ leira, onDelete }: { leira: Leira, onDelete: () => void }) 
           <Text style={styles.leiraStatusText}>{getStatusLabel(leira.status)}</Text>
       </View>
 
+      {/* ✅ LINHA DO TEMPO RESTAURADA */}
       <View style={styles.timeline}>
         <TimelineStep label="Formação" status="completed" dias={diasPassados} />
         <TimelineStep label="Secagem" status={diasPassados > 2 ? 'completed' : 'pending'} dias={3} />
@@ -445,15 +521,15 @@ function LeiraCard({ leira, onDelete }: { leira: Leira, onDelete: () => void }) 
       </View>
 
       <View style={styles.leiraDetails}>
-        <DetailItem label="Biossólidos" value={`${leira.biossólidos.length}x`} />
-        <DetailItem label="Bio Total" value={`${leira.totalBiossólido.toFixed(1)} ton`} />
-        <DetailItem label="Bagaço" value="12 ton" />
-        <DetailItem label="Total" value={`${(leira.totalBiossólido + 12).toFixed(1)} ton`} />
+        <DetailItem label="Origem" value={leira.tipoFormacao === 'MANUAL' ? 'Piscinão/Manual' : 'Estoque (MTR)'} />
+        <DetailItem label="Peso Bio" value={`${leira.totalBiossólido.toFixed(1)} ton`} />
+        <DetailItem label="Bagaço" value={`${leira.bagaço} ton`} />
       </View>
     </View>
   );
 }
 
+// ✅ COMPONENTE TIMELINE RESTAURADO
 function TimelineStep({ label, status, dias }: { label: string; status: 'pending' | 'active' | 'completed'; dias?: number }) {
   const getColor = () => {
     switch (status) {
@@ -495,7 +571,6 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: PALETTE.verdeClaro },
   scrollContent: { flexGrow: 1, paddingBottom: 30 },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center' },
-  loadingText: { marginTop: 12, fontSize: 14, color: PALETTE.cinza, fontWeight: '600' },
   header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingHorizontal: 20, paddingVertical: 16, backgroundColor: PALETTE.branco, borderBottomWidth: 1, borderBottomColor: PALETTE.cinzaClaro2 },
   backButton: { width: 40, height: 40, justifyContent: 'center', alignItems: 'center' },
   backIcon: { fontSize: 24, fontWeight: '700', color: PALETTE.verdePrimario },
@@ -509,14 +584,23 @@ const styles = StyleSheet.create({
   statBox: { flex: 1, backgroundColor: PALETTE.branco, borderRadius: 12, padding: 14, borderTopWidth: 3 },
   statBoxLabel: { fontSize: 11, color: PALETTE.cinza, fontWeight: '600', marginBottom: 8, textTransform: 'uppercase' },
   statBoxValue: { fontSize: 20, fontWeight: '800' },
-  warningBox: { flexDirection: 'row', backgroundColor: PALETTE.branco, marginHorizontal: 20, marginBottom: 16, borderRadius: 12, padding: 14, alignItems: 'center', borderLeftWidth: 4, borderLeftColor: PALETTE.warning },
-  warningIcon: { fontSize: 32, marginRight: 12 },
-  warningContent: { flex: 1 },
-  warningTitle: { fontSize: 13, fontWeight: '700', color: PALETTE.preto, marginBottom: 4 },
-  warningText: { fontSize: 12, color: PALETTE.cinza },
   formCard: { backgroundColor: PALETTE.branco, marginHorizontal: 20, marginBottom: 20, borderRadius: 16, padding: 20, borderTopWidth: 3, borderTopColor: PALETTE.verdePrimario },
   formTitle: { fontSize: 16, fontWeight: '700', color: PALETTE.preto, marginBottom: 16 },
+  
+  modeSelector: { flexDirection: 'row', backgroundColor: PALETTE.cinzaClaro2, borderRadius: 8, padding: 4, marginBottom: 20 },
+  modeBtn: { flex: 1, paddingVertical: 10, alignItems: 'center', borderRadius: 6 },
+  modeBtnActive: { backgroundColor: PALETTE.branco, shadowColor: '#000', shadowOpacity: 0.1, shadowRadius: 2, elevation: 2 },
+  modeBtnText: { fontSize: 12, fontWeight: '600', color: PALETTE.cinza },
+  modeBtnTextActive: { color: PALETTE.verdePrimario, fontWeight: '700' },
+
+  manualInputContainer: { marginBottom: 20 },
+  inputLabel: { fontSize: 12, fontWeight: '700', color: PALETTE.cinza, marginBottom: 6 },
+  inputWrapper: { flexDirection: 'row', alignItems: 'center', backgroundColor: PALETTE.cinzaClaro2, borderRadius: 8, paddingHorizontal: 12, marginBottom: 14 },
+  input: { flex: 1, paddingVertical: 12, fontSize: 16, fontWeight: '700', color: PALETTE.preto },
+  unitText: { fontSize: 14, fontWeight: '600', color: PALETTE.cinza },
+
   biossólidosList: { gap: 10, marginBottom: 16 },
+  subLabel: { fontSize: 12, color: PALETTE.cinza, marginBottom: 8 },
   biossólidoItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: PALETTE.cinzaClaro2, borderRadius: 12, padding: 12, borderWidth: 2, borderColor: PALETTE.cinzaClaro2 },
   biossólidoItemSelected: { backgroundColor: PALETTE.verdeClaro2, borderColor: PALETTE.verdePrimario },
   biossólidoCheckbox: { width: 24, height: 24, borderRadius: 12, backgroundColor: PALETTE.branco, justifyContent: 'center', alignItems: 'center', marginRight: 12, borderWidth: 2, borderColor: PALETTE.cinzaClaro },
@@ -536,7 +620,6 @@ const styles = StyleSheet.create({
   buttonGroup: { marginTop: 16 },
   buttonSpacer: { height: 10 },
   addBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginHorizontal: 20, marginBottom: 20, backgroundColor: PALETTE.verdePrimario, borderRadius: 12, paddingVertical: 14, gap: 8 },
-  addBtnDisabled: { backgroundColor: PALETTE.cinzaClaro, opacity: 0.6 },
   addBtnIcon: { fontSize: 24, fontWeight: '700', color: PALETTE.branco },
   addBtnText: { fontSize: 14, fontWeight: '700', color: PALETTE.branco },
   listSection: { paddingHorizontal: 20 },
@@ -549,11 +632,18 @@ const styles = StyleSheet.create({
   leiraHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 },
   leiraNumberRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   leiraNumber: { fontSize: 16, fontWeight: '800', color: PALETTE.preto },
-  loteBadge: { backgroundColor: PALETTE.terracota, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
+  loteBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6 },
   loteBadgeText: { fontSize: 10, fontWeight: '700', color: PALETTE.branco },
   leiraData: { fontSize: 11, color: PALETTE.cinza, marginTop: 4 },
   leiraStatusBadge: { paddingHorizontal: 12, paddingVertical: 8, borderRadius: 10 },
   leiraStatusText: { fontSize: 11, fontWeight: '700', color: PALETTE.branco },
+  leiraDetails: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: PALETTE.cinzaClaro2 },
+  detailItem: { flex: 1, minWidth: '45%' },
+  detailLabel: { fontSize: 10, color: PALETTE.cinza, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase' },
+  detailValue: { fontSize: 13, fontWeight: '700', color: PALETTE.preto },
+  iconButton: { padding: 8, borderRadius: 8, backgroundColor: PALETTE.cinzaClaro2, alignItems: 'center', justifyContent: 'center', minWidth: 40, minHeight: 40 },
+  
+  // ESTILOS DA TIMELINE (RESTAURADOS)
   timeline: { marginBottom: 14, paddingVertical: 10, borderLeftWidth: 2, borderLeftColor: PALETTE.cinzaClaro2, paddingLeft: 12 },
   timelineStep: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   timelineIcon: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginLeft: -17 },
@@ -561,19 +651,4 @@ const styles = StyleSheet.create({
   timelineContent: { marginLeft: 12 },
   timelineLabel: { fontSize: 12, fontWeight: '600', color: PALETTE.preto },
   timelineDias: { fontSize: 10, color: PALETTE.cinza, marginTop: 2 },
-  leiraDetails: { flexDirection: 'row', flexWrap: 'wrap', gap: 10, marginBottom: 14, paddingTop: 12, borderTopWidth: 1, borderTopColor: PALETTE.cinzaClaro2 },
-  detailItem: { flex: 1, minWidth: '45%' },
-  detailLabel: { fontSize: 10, color: PALETTE.cinza, fontWeight: '600', marginBottom: 4, textTransform: 'uppercase' },
-  detailValue: { fontSize: 13, fontWeight: '700', color: PALETTE.preto },
-  
-  // ESTILOS PARA OS BOTÕES
-  iconButton: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: PALETTE.cinzaClaro2,
-    alignItems: 'center',
-    justifyContent: 'center',
-    minWidth: 40, // Garante tamanho mínimo para toque
-    minHeight: 40
-  }
 });

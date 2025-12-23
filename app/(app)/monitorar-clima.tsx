@@ -203,7 +203,7 @@ export default function MonitorarClimaScreen() {
                 {/* ===== HEADER ===== */}
                 <View style={styles.header}>
                     <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-                        <Text style={styles.backIcon}>←</Text>
+                        <Text style={styles.backIcon}></Text>
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Monitorar Clima</Text>
                     <View style={styles.backButton} />

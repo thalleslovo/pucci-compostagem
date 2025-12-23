@@ -6,135 +6,109 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
 );
 
-interface Enriquecimento {
-  id: string;
-  leiraId: string;
-  dataEnriquecimento: string;
-  horaEnriquecimento?: string;
-  pesoAnterior: number;
-  pesoAdicionado: number;
-  pesoNovo: number;
-  numeroMTR?: string;
-  origem?: string;
-  observacoes?: string;
+// Função para converter DD/MM/YYYY para YYYY-MM-DD (Obrigatório para tipo DATE do SQL)
+function converterDataParaISO(dataBR: string): string | null {
+  if (!dataBR) return null;
+  // Se já estiver em ISO, retorna
+  if (dataBR.includes('-')) return dataBR;
+
+  const partes = dataBR.split('/');
+  if (partes.length !== 3) return null;
+
+  // Retorna YYYY-MM-DD
+  return `${partes[2]}-${partes[1]}-${partes[0]}`;
 }
 
 export const handler: Handler = async (event) => {
-  console.log("🔄 Função sync-enriquecimento acionada");
-  console.log("🔍 DEBUG - body recebido:", JSON.stringify(event.body));
+  // 1. HEADERS CORS (Essencial)
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
 
-  if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "Método não permitido" }),
-    };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
   try {
     const body = JSON.parse(event.body || "{}");
-    const enriquecimentos: Enriquecimento[] = body.enriquecimentos || [];
-    const operadorNome = body.operadorNome || "Desconhecido";
+    const enriquecimentos = body.enriquecimentos || [];
 
-    // ✅ FORÇAR UUID CORRETO - Ignorar valor inválido do app
+    // ⚠️ ATENÇÃO: Este ID deve existir na tabela auth.users do Supabase
+    // Se não existir, o banco vai recusar por causa da Foreign Key
     let operadorId = body.operadorId;
 
-    // Se for inválido, usar o UUID correto
-    if (!operadorId || operadorId === 'operador-001' || !operadorId.includes('-')) {
-      operadorId = 'e1305705-7be9-4e67-9ab1-6ef5ddd449fb';
-      console.log('⚠️ operadorId inválido recebido, usando UUID padrão');
+    // Validação básica de UUID
+    if (!operadorId || operadorId.length < 30) {
+      // Use um ID de fallback que VOCÊ TEM CERTEZA que existe no auth.users
+      operadorId = '116609f9-53c2-4289-9a63-0174fad8148e';
     }
 
-    console.log(`📤 Recebido: ${enriquecimentos.length} enriquecimentos do operador ${operadorNome}`);
-    console.log(`🔍 DEBUG - operadorId final: ${operadorId}`);
+    console.log(`📥 Processando ${enriquecimentos.length} itens para a tabela enriquecimento_leira...`);
 
     if (enriquecimentos.length === 0) {
+      return { statusCode: 200, headers, body: JSON.stringify({ message: "Vazio" }) };
+    }
+
+    const agora = new Date().toISOString();
+    const erros = [];
+
+    for (const item of enriquecimentos) {
+      // Converte a data para o formato que o banco aceita
+      const dataISO = converterDataParaISO(item.dataEnriquecimento);
+
+      // Mapeamento EXATO para sua tabela
+      const payload = {
+        id: item.id,
+        usuario_id: operadorId,        // FK para auth.users
+        leiraid: item.leiraId,         // Nome exato da coluna (tudo minúsculo)
+        data_enriquecimento: dataISO,  // Formato YYYY-MM-DD
+        hora_enriquecimento: item.horaEnriquecimento || null,
+        peso_anterior: item.pesoAnterior,
+        peso_adicionado: item.pesoAdicionado,
+        peso_novo: item.pesoNovo,
+        numero_mtr: item.numeroMTR || null,
+        origem: item.origem || null,
+        observacoes: item.observacoes || null,
+        sincronizado: true,
+        sincronizado_em: agora,
+        criado_em: agora,
+        atualizado_em: agora
+      };
+
+      const { error } = await supabase
+        .from("enriquecimento_leira")
+        .upsert(payload, { onConflict: 'id' });
+
+      if (error) {
+        console.error(`❌ Erro DB (ID: ${item.id}):`, error.message);
+        erros.push(error.message);
+      }
+    }
+
+    // Se houve erro, retorna 500 para o App saber e tentar de novo depois
+    if (erros.length > 0) {
       return {
-        statusCode: 200,
+        statusCode: 500,
+        headers,
         body: JSON.stringify({
-          sucesso: true,
-          sincronizados: 0,
-          detalhes: [],
+          sucesso: false,
+          erro: `Erro no Banco: ${erros[0]}` // Retorna o primeiro erro para facilitar debug
         }),
       };
     }
 
-    const resultados = [];
-    let sincronizados = 0;
-    const agora = new Date().toISOString();
-
-    for (const enriquecimento of enriquecimentos) {
-      try {
-        console.log(`💪 Processando enriquecimento da leira: ${enriquecimento.leiraId}`);
-        console.log(`🔍 DEBUG - Usando operadorId: ${operadorId}`);
-
-        const { data, error } = await supabase
-          .from("enriquecimento_leira")
-          .insert({
-            id: enriquecimento.id,
-            usuario_id: operadorId,
-            leiraid: enriquecimento.leiraId,
-            data_enriquecimento: enriquecimento.dataEnriquecimento,
-            hora_enriquecimento: enriquecimento.horaEnriquecimento || null,
-            peso_anterior: enriquecimento.pesoAnterior,
-            peso_adicionado: enriquecimento.pesoAdicionado,
-            peso_novo: enriquecimento.pesoNovo,
-            numero_mtr: enriquecimento.numeroMTR || null,
-            origem: enriquecimento.origem || null,
-            observacoes: enriquecimento.observacoes || null,
-            sincronizado: true,
-            sincronizado_em: agora,
-            criado_em: agora,
-            atualizado_em: agora,
-          });
-
-        if (error) {
-          console.error(`❌ Erro ao inserir enriquecimento:`, error.message);
-          resultados.push({
-            id: enriquecimento.id,
-            leiraId: enriquecimento.leiraId,
-            status: "erro",
-            erro: error.message,
-          });
-        } else {
-          console.log(`✅ Enriquecimento inserido com sucesso`);
-          sincronizados++;
-          resultados.push({
-            id: enriquecimento.id,
-            leiraId: enriquecimento.leiraId,
-            status: "inserido",
-          });
-        }
-      } catch (err) {
-        console.error(`❌ Erro ao processar enriquecimento:`, err);
-        resultados.push({
-          id: enriquecimento.id,
-          leiraId: enriquecimento.leiraId,
-          status: "erro",
-          erro: String(err),
-        });
-      }
-    }
-
-    console.log(`✅ Sincronização concluída: ${sincronizados}/${enriquecimentos.length} inseridos`);
-
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        sucesso: true,
-        sincronizados,
-        erros: resultados.filter(r => r.status === "erro").length,
-        detalhes: resultados,
-      }),
+      headers,
+      body: JSON.stringify({ sucesso: true }),
     };
-  } catch (error) {
-    console.error("❌ Erro geral na sincronização:", error);
+
+  } catch (error: any) {
+    console.error("❌ Erro Crítico:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        sucesso: false,
-        erro: "Erro ao sincronizar dados",
-        detalhes: String(error),
-      }),
+      headers,
+      body: JSON.stringify({ erro: error.message }),
     };
   }
 };

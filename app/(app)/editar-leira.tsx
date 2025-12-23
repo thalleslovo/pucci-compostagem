@@ -146,7 +146,7 @@ export default function EditarLeiraScreen() {
         {/* HEADER */}
         <View style={styles.header}>
             <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-                <Text style={styles.backIcon}>←</Text>
+                <Text style={styles.backIcon}></Text>
             </TouchableOpacity>
             <Text style={styles.title}>Editar Leira #{numeroLeira}</Text>
             <View style={{width: 40}} />
