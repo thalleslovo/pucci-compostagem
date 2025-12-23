@@ -1,15 +1,15 @@
 {
   "expo": {
-    "name": "Pucci Compostagem",
-    "slug": "pucci-compostagem",
-    "version": "1.0.0",
+    "name": "Campos Solo",
+    "slug": "Compostagem",
+    "version": "1.0.1",
     "scheme": "pucci",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/campos_icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./assets/campos_icon.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -22,7 +22,7 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/campos icon.png",
+        "foregroundImage": "./assets/campos_icon.png",
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
@@ -30,7 +30,7 @@
       "package": "com.campossolo.puccicompostagem"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/campos_icon.png"
     },
     "plugins": [
       "expo-router"

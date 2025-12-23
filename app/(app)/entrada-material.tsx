@@ -1,6 +1,4 @@
-// app/(app)/entrada-material.tsx
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
     View,
     Text,
@@ -10,6 +8,8 @@ import {
     Alert,
     TextInput as RNTextInput,
     Modal,
+    Switch,
+    ActivityIndicator
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -30,6 +30,8 @@ const PALETTE = {
     cinzaClaro2: '#F5F5F5',
     erro: '#D32F2F',
     sucesso: '#4CAF50',
+    azulPiscinao: '#2196F3', // Cor para o Piscinão
+    azulClaro: '#E3F2FD'
 };
 
 interface MaterialEntry {
@@ -39,10 +41,12 @@ interface MaterialEntry {
     numeroMTR: string;
     peso: string;
     origem: string;
+    destino?: 'patio' | 'piscinao'; // ✅ Novo campo
 }
 
 export default function EntradaMaterialScreen() {
     const router = useRouter();
+    const [loading, setLoading] = useState(true);
     const [showForm, setShowForm] = useState(false);
     const [showModalNovaOrigem, setShowModalNovaOrigem] = useState(false);
     const [novaOrigemText, setNovaOrigemText] = useState('');
@@ -55,41 +59,37 @@ export default function EntradaMaterialScreen() {
         numeroMTR: '',
         peso: '',
         origem: 'Sabesp',
+        destino: 'patio' // ✅ Padrão é Pátio
     });
 
-    /*useFocusEffect(
+    useFocusEffect(
         React.useCallback(() => {
-            const sincronizarSeNecessario = async () => {
-                try {
-                    const temInternet = await syncService.verificarInternet();
-                    if (temInternet) {
-                        console.log('🌐 Internet detectada - sincronizando...');
-                        await syncService.sincronizar();
-                    } else {
-                        console.log('📵 Sem internet - dados salvos localmente');
-                    }
-                } catch (error) {
-                    console.error('Erro ao sincronizar:', error);
-                }
-            };
-
-            sincronizarSeNecessario();
+            loadData();
         }, [])
-    );*/
+    );
 
-
+    const loadData = async () => {
+        try {
+            setLoading(true);
+            const registrosExistentes = await AsyncStorage.getItem('materiaisRegistrados');
+            if (registrosExistentes) {
+                setEntries(JSON.parse(registrosExistentes).reverse()); // Mostra mais recentes primeiro
+            }
+        } catch (error) {
+            console.error(error);
+        } finally {
+            setLoading(false);
+        }
+    };
 
     // ===== FORMATAR DATA =====
     const formatarData = (text: string) => {
         let formatted = text.replace(/\D/g, '');
-        if (formatted.length <= 2) {
-            return formatted;
-        } else if (formatted.length <= 4) {
-            return formatted.slice(0, 2) + '/' + formatted.slice(2);
-        } else {
-            return formatted.slice(0, 2) + '/' + formatted.slice(2, 4) + '/' + formatted.slice(4, 8);
-        }
+        if (formatted.length <= 2) return formatted;
+        if (formatted.length <= 4) return formatted.slice(0, 2) + '/' + formatted.slice(2);
+        return formatted.slice(0, 2) + '/' + formatted.slice(2, 4) + '/' + formatted.slice(4, 8);
     };
+
     // ===== VALIDAR DATA =====
     const validarData = (data: string): boolean => {
         if (data.length !== 10) return false;
@@ -99,24 +99,22 @@ export default function EntradaMaterialScreen() {
         if (ano < 2025 || ano > 2100) return false;
         return true;
     };
+
     // ===== ADICIONAR NOVA ORIGEM =====
     const handleAddNovaOrigem = () => {
         if (!novaOrigemText.trim()) {
             Alert.alert('Erro', 'Digite o nome da origem');
             return;
         }
-
         if (origens.includes(novaOrigemText)) {
             Alert.alert('Aviso', 'Esta origem já existe');
             setNovaOrigemText('');
             return;
         }
-
         setOrigens([...origens, novaOrigemText]);
         setFormData({ ...formData, origem: novaOrigemText });
         setNovaOrigemText('');
         setShowModalNovaOrigem(false);
-        Alert.alert('Sucesso', `Origem "${novaOrigemText}" adicionada!`);
     };
 
     // ===== TROCAR TIPO DE MATERIAL =====
@@ -126,35 +124,16 @@ export default function EntradaMaterialScreen() {
             tipoMaterial: tipo,
             numeroMTR: '',
             origem: 'Sabesp',
+            destino: 'patio' // Reseta destino se mudar o tipo
         });
     };
 
     // ===== ADICIONAR MATERIAL =====
     const handleAddMaterial = async () => {
-        // Validações obrigatórias
-        if (!formData.data.trim()) {
-            Alert.alert('Erro', 'Digite a data');
-            return;
-        }
-
-        if (!validarData(formData.data)) {
-            Alert.alert('Erro', 'Data inválida. Use o formato DD/MM/AAAA');
-            return;
-        }
-
-        if (formData.tipoMaterial === 'Biossólido' && !formData.numeroMTR.trim()) {
-            Alert.alert('Erro', 'Digite o número do MTR');
-            return;
-        }
-
-        if (!formData.peso.trim()) {
-            Alert.alert('Erro', 'Digite o peso');
-            return;
-        }
-        if (parseFloat(formData.peso) <= 0) {
-            Alert.alert('Erro', 'O peso deve ser maior que zero');
-            return;
-        }
+        if (!formData.data.trim()) { Alert.alert('Erro', 'Digite a data'); return; }
+        if (!validarData(formData.data)) { Alert.alert('Erro', 'Data inválida'); return; }
+        if (formData.tipoMaterial === 'Biossólido' && !formData.numeroMTR.trim()) { Alert.alert('Erro', 'Digite o MTR'); return; }
+        if (!formData.peso.trim() || parseFloat(formData.peso) <= 0) { Alert.alert('Erro', 'Peso inválido'); return; }
 
         const newEntry: MaterialEntry = {
             id: Date.now().toString(),
@@ -163,88 +142,63 @@ export default function EntradaMaterialScreen() {
             numeroMTR: formData.numeroMTR,
             peso: formData.peso,
             origem: formData.origem,
+            // ✅ Se for Bagaço, sempre vai pro pátio. Se for Biossólido, respeita a escolha.
+            destino: formData.tipoMaterial === 'Biossólido' ? (formData.destino as 'patio' | 'piscinao') : 'patio'
         };
 
-        console.log('💾 ===== SALVANDO NOVO MATERIAL =====');
-        console.log('💾 Dados do novo material:', newEntry);
-
         try {
-            // ===== SALVAR NO ASYNCSTORAGE =====
             const registrosExistentes = await AsyncStorage.getItem('materiaisRegistrados');
-
-            console.log('💾 Registros existentes (bruto):', registrosExistentes);
-
             const materiais = registrosExistentes ? JSON.parse(registrosExistentes) : [];
-
-            console.log('💾 Materiais antes de adicionar:', materiais.length);
-
-            materiais.push(newEntry);
-
-            console.log('💾 Materiais depois de adicionar:', materiais.length);
-
-            await AsyncStorage.setItem('materiaisRegistrados', JSON.stringify(materiais));
-
-            console.log('✅ Material salvo com sucesso no AsyncStorage');
-
-            // ===== ADICIONAR À FILA DE SINCRONIZAÇÃO =====
+            
+            // Adiciona no início da lista (mais recente)
+            const novaLista = [...materiais, newEntry]; 
+            
+            await AsyncStorage.setItem('materiaisRegistrados', JSON.stringify(novaLista));
             await syncService.adicionarFila('material', newEntry);
-            console.log('📤 Material adicionado à fila de sincronização');
 
-            // ===== ATUALIZAR ESTADO LOCAL =====
+            // Atualiza lista na tela (reverte a ordem para exibição se necessário, ou mantém a ordem de salvamento)
+            // Aqui vamos carregar do storage para garantir consistência ou atualizar estado direto
             setEntries([newEntry, ...entries]);
 
-            // ===== RESET DO FORMULÁRIO =====
             setFormData({
                 data: new Date().toLocaleDateString('pt-BR'),
                 tipoMaterial: 'Biossólido',
                 numeroMTR: '',
                 peso: '',
                 origem: 'Sabesp',
+                destino: 'patio'
             });
 
             setShowForm(false);
-            Alert.alert(
-                'Sucesso! ✅',
-                'Material registrado!\n\nOs dados serão sincronizados com o servidor quando você conectar à internet.'
-            );
+            
+            const msgDestino = newEntry.destino === 'piscinao' ? 'no PISCINÃO 💧' : 'no PÁTIO 🌱';
+            Alert.alert('Sucesso! ✅', `Material registrado ${msgDestino}!`);
+
         } catch (error) {
-            console.error('❌ Erro ao salvar:', error);
             Alert.alert('Erro', 'Não foi possível salvar o material');
         }
     };
-    // ===== CALCULAR TOTAIS =====
-    const getTotalBiossólido = () => {
-        return entries
-            .filter((item) => item.tipoMaterial === 'Biossólido')
-            .reduce((acc, item) => acc + (parseFloat(item.peso) || 0), 0);
-    };
 
-    const getTotalBagaço = () => {
-        return entries
-            .filter((item) => item.tipoMaterial === 'Bagaço de Cana')
-            .reduce((acc, item) => acc + (parseFloat(item.peso) || 0), 0);
-    };
+    // ===== TOTAIS =====
+    const getTotalBiossólido = () => entries.filter(i => i.tipoMaterial === 'Biossólido').reduce((acc, i) => acc + (parseFloat(i.peso) || 0), 0);
+    const getTotalBagaço = () => entries.filter(i => i.tipoMaterial === 'Bagaço de Cana').reduce((acc, i) => acc + (parseFloat(i.peso) || 0), 0);
+    const getTotalPiscinao = () => entries.filter(i => i.destino === 'piscinao').reduce((acc, i) => acc + (parseFloat(i.peso) || 0), 0);
 
-    const getTotalPeso = () => {
-        return entries.reduce((acc, item) => acc + (parseFloat(item.peso) || 0), 0);
-    };
+    if (loading) return <ActivityIndicator style={{flex:1}} color={PALETTE.verdePrimario} />;
 
     return (
         <SafeAreaView style={styles.container}>
             <ScrollView contentContainerStyle={styles.scrollContent}>
-                {/* ===== HEADER ===== */}
+                {/* HEADER */}
                 <View style={styles.header}>
-                    <TouchableOpacity
-                        style={styles.backButton}
-                        onPress={() => router.back()}
-                    >
-                        
+                    <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+                        <Text style={styles.backIcon}>←</Text>
                     </TouchableOpacity>
                     <Text style={styles.headerTitle}>Entrada de Material</Text>
                     <View style={styles.backButton} />
                 </View>
 
-                {/* ===== INFO BOX ===== */}
+                {/* INFO BOX */}
                 <View style={styles.infoBox}>
                     <Text style={styles.infoIcon}>🚚</Text>
                     <View style={styles.infoContent}>
@@ -253,79 +207,49 @@ export default function EntradaMaterialScreen() {
                     </View>
                 </View>
 
-                {/* ===== STATS ===== */}
+                {/* STATS */}
                 <View style={styles.statsContainer}>
-                    <StatBox
-                        label="Total Registrado"
-                        value={entries.length.toString()}
-                        unit="entradas"
-                        color={PALETTE.verdePrimario}
-                    />
-                    <StatBox
-                        label="Biossólido"
-                        value={getTotalBiossólido().toFixed(1)}
-                        unit="ton"
-                        color={PALETTE.terracota}
-                    />
-                    <StatBox
-                        label="Bagaço de Cana"
-                        value={getTotalBagaço().toFixed(1)}
-                        unit="ton"
-                        color={PALETTE.sucesso}
-                    />
-                    <StatBox
-                        label="Peso Total"
-                        value={getTotalPeso().toFixed(1)}
-                        unit="ton"
-                        color={PALETTE.cinza}
-                    />
+                    <View style={{flexDirection: 'row', gap: 10}}>
+                        <StatBox label="Biossólido (Total)" value={getTotalBiossólido().toFixed(1)} unit="ton" color={PALETTE.terracota} />
+                        <StatBox label="Bagaço" value={getTotalBagaço().toFixed(1)} unit="ton" color={PALETTE.sucesso} />
+                    </View>
+                    {/* ✅ NOVO STAT: PISCINÃO */}
+                    <View style={{marginTop: 10}}>
+                        <StatBox label="Estoque Piscinão" value={getTotalPiscinao().toFixed(1)} unit="ton" color={PALETTE.azulPiscinao} />
+                    </View>
                 </View>
 
-                {/* ===== FORM SECTION ===== */}
+                {/* FORM */}
                 {showForm ? (
                     <View style={styles.formCard}>
                         <Text style={styles.formTitle}>Registrar Novo Material</Text>
 
-                        {/* DATA SEM DATEPICKER */}
+                        {/* DATA */}
                         <View style={styles.formGroup}>
-                            <Text style={styles.label}>Data de Chegada</Text>
+                            <Text style={styles.label}>Data</Text>
                             <View style={styles.inputBox}>
                                 <Text style={styles.inputIcon}>📅</Text>
                                 <RNTextInput
                                     style={styles.input}
-                                    placeholder="DD/MM/AAAA"
                                     value={formData.data}
-                                    onChangeText={(text) => {
-                                        const formatted = formatarData(text);
-                                        setFormData({ ...formData, data: formatted });
-                                    }}
+                                    onChangeText={t => setFormData({ ...formData, data: formatarData(t) })}
                                     maxLength={10}
                                     keyboardType="numeric"
                                 />
                             </View>
-                            <Text style={styles.hint}>Digite no formato DD/MM/AAAA (a partir de 2025)</Text>
                         </View>
 
-                        {/* TIPO DE MATERIAL */}
+                        {/* TIPO */}
                         <View style={styles.formGroup}>
                             <Text style={styles.label}>Tipo de Material</Text>
                             <View style={styles.optionsRow}>
                                 {['Biossólido', 'Bagaço de Cana'].map((tipo) => (
                                     <TouchableOpacity
                                         key={tipo}
-                                        style={[
-                                            styles.optionBtn,
-                                            formData.tipoMaterial === tipo && styles.optionBtnActive,
-                                        ]}
+                                        style={[styles.optionBtn, formData.tipoMaterial === tipo && styles.optionBtnActive]}
                                         onPress={() => handleTipoChange(tipo)}
                                     >
-                                        <Text
-                                            style={[
-                                                styles.optionText,
-                                                formData.tipoMaterial === tipo &&
-                                                styles.optionTextActive,
-                                            ]}
-                                        >
+                                        <Text style={[styles.optionText, formData.tipoMaterial === tipo && styles.optionTextActive]}>
                                             {tipo === 'Biossólido' ? '💧' : '🌾'} {tipo}
                                         </Text>
                                     </TouchableOpacity>
@@ -333,7 +257,27 @@ export default function EntradaMaterialScreen() {
                             </View>
                         </View>
 
-                        {/* MTR - APENAS PARA BIOSSÓLIDO */}
+                        {/* ✅ OPÇÃO PISCINÃO (SÓ PARA BIOSSÓLIDO) */}
+                        {formData.tipoMaterial === 'Biossólido' && (
+                            <View style={styles.piscinaoBox}>
+                                <View style={{flex: 1}}>
+                                    <Text style={styles.piscinaoTitle}>Destino: Piscinão?</Text>
+                                    <Text style={styles.piscinaoDesc}>
+                                        {formData.destino === 'piscinao' 
+                                            ? 'Material será armazenado no tanque.' 
+                                            : 'Material irá para o pátio (Leira).'}
+                                    </Text>
+                                </View>
+                                <Switch
+                                    trackColor={{ false: PALETTE.cinzaClaro, true: PALETTE.azulPiscinao }}
+                                    thumbColor={PALETTE.branco}
+                                    onValueChange={(val) => setFormData({...formData, destino: val ? 'piscinao' : 'patio'})}
+                                    value={formData.destino === 'piscinao'}
+                                />
+                            </View>
+                        )}
+
+                        {/* MTR */}
                         {formData.tipoMaterial === 'Biossólido' && (
                             <View style={styles.formGroup}>
                                 <Text style={styles.label}>Número do MTR</Text>
@@ -341,11 +285,8 @@ export default function EntradaMaterialScreen() {
                                     <Text style={styles.inputIcon}>🔢</Text>
                                     <RNTextInput
                                         style={styles.input}
-                                        placeholder="Ex: MTR-2025-0001"
                                         value={formData.numeroMTR}
-                                        onChangeText={(text) =>
-                                            setFormData({ ...formData, numeroMTR: text })
-                                        }
+                                        onChangeText={t => setFormData({ ...formData, numeroMTR: t })}
                                     />
                                 </View>
                             </View>
@@ -353,30 +294,24 @@ export default function EntradaMaterialScreen() {
 
                         {/* PESO */}
                         <View style={styles.formGroup}>
-                            <Text style={styles.label}>Peso (Toneladas)</Text>
+                            <Text style={styles.label}>Peso (Ton)</Text>
                             <View style={styles.inputBox}>
                                 <Text style={styles.inputIcon}>⚖️</Text>
                                 <RNTextInput
                                     style={styles.input}
-                                    placeholder="Ex: 15"
                                     value={formData.peso}
-                                    onChangeText={(text) =>
-                                        setFormData({ ...formData, peso: text })
-                                    }
+                                    onChangeText={t => setFormData({ ...formData, peso: t })}
                                     keyboardType="decimal-pad"
                                 />
                             </View>
                         </View>
 
-                        {/* ORIGEM - APENAS PARA BIOSSÓLIDO */}
+                        {/* ORIGEM */}
                         {formData.tipoMaterial === 'Biossólido' && (
                             <View style={styles.formGroup}>
                                 <View style={styles.labelHeader}>
                                     <Text style={styles.label}>Origem</Text>
-                                    <TouchableOpacity
-                                        onPress={() => setShowModalNovaOrigem(true)}
-                                        style={styles.addOrigemBtn}
-                                    >
+                                    <TouchableOpacity onPress={() => setShowModalNovaOrigem(true)} style={styles.addOrigemBtn}>
                                         <Text style={styles.addOrigemIcon}>+</Text>
                                     </TouchableOpacity>
                                 </View>
@@ -384,21 +319,10 @@ export default function EntradaMaterialScreen() {
                                     {origens.map((origem) => (
                                         <TouchableOpacity
                                             key={origem}
-                                            style={[
-                                                styles.optionBtn,
-                                                formData.origem === origem && styles.optionBtnActive,
-                                            ]}
-                                            onPress={() =>
-                                                setFormData({ ...formData, origem })
-                                            }
+                                            style={[styles.optionBtn, formData.origem === origem && styles.optionBtnActive]}
+                                            onPress={() => setFormData({ ...formData, origem })}
                                         >
-                                            <Text
-                                                style={[
-                                                    styles.optionText,
-                                                    formData.origem === origem &&
-                                                    styles.optionTextActive,
-                                                ]}
-                                            >
+                                            <Text style={[styles.optionText, formData.origem === origem && styles.optionTextActive]}>
                                                 {origem}
                                             </Text>
                                         </TouchableOpacity>
@@ -407,98 +331,52 @@ export default function EntradaMaterialScreen() {
                             </View>
                         )}
 
-                        {/* BUTTONS */}
                         <View style={styles.buttonGroup}>
-                            <Button
-                                title="Cancelar"
-                                onPress={() => setShowForm(false)}
-                                fullWidth
-                            />
+                            <Button title="Cancelar" onPress={() => setShowForm(false)} fullWidth />
                             <View style={styles.buttonSpacer} />
-                            <Button
-                                title="Registrar Material"
-                                onPress={handleAddMaterial}
-                                fullWidth
-                                variant="primary"
-                            />
+                            <Button title="Salvar" onPress={handleAddMaterial} fullWidth variant="primary" />
                         </View>
                     </View>
                 ) : (
-                    <TouchableOpacity
-                        style={styles.addBtn}
-                        onPress={() => setShowForm(true)}
-                    >
+                    <TouchableOpacity style={styles.addBtn} onPress={() => setShowForm(true)}>
                         <Text style={styles.addBtnIcon}>+</Text>
                         <Text style={styles.addBtnText}>Adicionar Novo Material</Text>
                     </TouchableOpacity>
                 )}
 
-                {/* ===== LIST SECTION ===== */}
+                {/* LISTA */}
                 <View style={styles.listSection}>
                     <Text style={styles.listTitle}>Últimas Entradas</Text>
-
                     {entries.length > 0 ? (
-                        entries.map((item) => (
-                            <MaterialCard key={item.id} item={item} />
-                        ))
+                        entries.map((item) => <MaterialCard key={item.id} item={item} />)
                     ) : (
                         <View style={styles.emptyState}>
                             <Text style={styles.emptyIcon}>📭</Text>
-                            <Text style={styles.emptyText}>Nenhum material registrado ainda</Text>
-                            <Text style={styles.emptySubtext}>
-                                Clique em "Adicionar Novo Material" para começar
-                            </Text>
+                            <Text style={styles.emptyText}>Nenhum material registrado</Text>
                         </View>
                     )}
                 </View>
             </ScrollView>
 
-            {/* ===== MODAL NOVA ORIGEM ===== */}
-            <Modal
-                visible={showModalNovaOrigem}
-                transparent
-                animationType="fade"
-                onRequestClose={() => {
-                    setNovaOrigemText('');
-                    setShowModalNovaOrigem(false);
-                }}
-            >
+            {/* MODAL ORIGEM */}
+            <Modal visible={showModalNovaOrigem} transparent animationType="fade" onRequestClose={() => setShowModalNovaOrigem(false)}>
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.modalTitle}>Adicionar Nova Origem</Text>
-
-                        <Text style={styles.modalLabel}>Nome da Origem do Biossólido</Text>
+                        <Text style={styles.modalTitle}>Nova Origem</Text>
                         <View style={styles.modalInputBox}>
-                            <Text style={styles.modalIcon}>📍</Text>
                             <RNTextInput
                                 style={styles.modalInput}
-                                placeholder="Ex: CETESB, ETE Franca, Ambient Ribeirão, etc"
+                                placeholder="Nome da origem"
                                 value={novaOrigemText}
                                 onChangeText={setNovaOrigemText}
                                 autoFocus
-                                placeholderTextColor={PALETTE.cinza}
                             />
                         </View>
-
-                        <Text style={styles.modalHint}>
-                            Digite o nome do local onde vem o biossólido
-                        </Text>
-
                         <View style={styles.modalButtons}>
-                            <TouchableOpacity
-                                style={styles.modalBtnCancelar}
-                                onPress={() => {
-                                    setNovaOrigemText('');
-                                    setShowModalNovaOrigem(false);
-                                }}
-                            >
+                            <TouchableOpacity style={styles.modalBtnCancelar} onPress={() => setShowModalNovaOrigem(false)}>
                                 <Text style={styles.modalBtnCancelarText}>Cancelar</Text>
                             </TouchableOpacity>
-
-                            <TouchableOpacity
-                                style={styles.modalBtnConfirmar}
-                                onPress={handleAddNovaOrigem}
-                            >
+                            <TouchableOpacity style={styles.modalBtnConfirmar} onPress={handleAddNovaOrigem}>
                                 <Text style={styles.modalBtnConfirmarText}>Adicionar</Text>
                             </TouchableOpacity>
                         </View>
@@ -508,24 +386,10 @@ export default function EntradaMaterialScreen() {
         </SafeAreaView>
     );
 }
-// ===== MONITORAR INTERNET E SINCRONIZAR =====
-// ===== SINCRONIZAR AO ENTRAR NA TELA =====
 
-
-// ===== COMPONENTE: STAT BOX =====
-function StatBox({
-    label,
-    value,
-    unit,
-    color,
-}: {
-    label: string;
-    value: string;
-    unit: string;
-    color: string;
-}) {
+function StatBox({ label, value, unit, color }: any) {
     return (
-        <View style={[styles.statBox, { borderTopColor: color }]}>
+        <View style={[styles.statBox, { borderTopColor: color, flex: 1 }]}>
             <Text style={styles.statBoxLabel}>{label}</Text>
             <View style={styles.statBoxValue}>
                 <Text style={[styles.statBoxNumber, { color }]}>{value}</Text>
@@ -535,21 +399,19 @@ function StatBox({
     );
 }
 
-// ===== COMPONENTE: MATERIAL CARD =====
 function MaterialCard({ item }: { item: MaterialEntry }) {
-    const getTipoIcon = (tipo: string) => {
-        return tipo === 'Biossólido' ? '💧' : '🌾';
-    };
-
-    const getOrigemIcon = (origem: string) => {
-        return origem === 'Sabesp' ? '💧' : '🏭';
-    };
-
+    const isPiscinao = item.destino === 'piscinao';
+    
     return (
-        <View style={styles.materialCard}>
+        <View style={[
+            styles.materialCard, 
+            isPiscinao && styles.materialCardPiscinao // Estilo especial se for piscinão
+        ]}>
             <View style={styles.materialCardHeader}>
                 <View style={styles.materialCardLeft}>
-                    <Text style={styles.materialCardIcon}>{getTipoIcon(item.tipoMaterial)}</Text>
+                    <Text style={styles.materialCardIcon}>
+                        {item.tipoMaterial === 'Biossólido' ? '💧' : '🌾'}
+                    </Text>
                     <View style={styles.materialCardInfo}>
                         <Text style={styles.materialCardTitle}>{item.tipoMaterial}</Text>
                         <Text style={styles.materialCardDate}>{item.data}</Text>
@@ -558,13 +420,17 @@ function MaterialCard({ item }: { item: MaterialEntry }) {
 
                 {item.tipoMaterial === 'Biossólido' && (
                     <View style={styles.materialCardBadge}>
-                        <Text style={styles.materialCardBadgeIcon}>
-                            {getOrigemIcon(item.origem)}
-                        </Text>
                         <Text style={styles.materialCardBadgeText}>{item.origem}</Text>
                     </View>
                 )}
             </View>
+
+            {/* ✅ BADGE PISCINÃO */}
+            {isPiscinao && (
+                <View style={styles.piscinaoBadge}>
+                    <Text style={styles.piscinaoBadgeText}>💧 Armazenado no Piscinão</Text>
+                </View>
+            )}
 
             <View style={styles.materialCardDetails}>
                 {item.tipoMaterial === 'Biossólido' && (
@@ -582,411 +448,102 @@ function MaterialCard({ item }: { item: MaterialEntry }) {
     );
 }
 
-// ===== STYLES =====
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: PALETTE.verdeClaro,
-    },
-    scrollContent: {
-        flexGrow: 1,
-        paddingBottom: 30,
-    },
-    header: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-        paddingVertical: 16,
-        backgroundColor: PALETTE.branco,
-        borderBottomWidth: 1,
-        borderBottomColor: PALETTE.cinzaClaro2,
-    },
-    backButton: {
-        width: 40,
-        height: 40,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    backIcon: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: PALETTE.verdePrimario,
-    },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: PALETTE.preto,
-    },
-    infoBox: {
-        flexDirection: 'row',
-        backgroundColor: PALETTE.branco,
-        marginHorizontal: 20,
-        marginTop: 16,
-        marginBottom: 16,
-        borderRadius: 12,
-        padding: 14,
-        alignItems: 'center',
-        borderLeftWidth: 4,
-        borderLeftColor: PALETTE.terracota,
-    },
-    infoIcon: {
-        fontSize: 32,
-        marginRight: 12,
-    },
-    infoContent: {
-        flex: 1,
-    },
-    infoTitle: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: PALETTE.preto,
-        marginBottom: 4,
-    },
-    infoText: {
-        fontSize: 12,
-        color: PALETTE.cinza,
-    },
-    statsContainer: {
-        paddingHorizontal: 20,
-        marginBottom: 20,
-        gap: 10,
-    },
-    statBox: {
-        backgroundColor: PALETTE.branco,
-        borderRadius: 12,
-        padding: 14,
-        borderTopWidth: 3,
-    },
-    statBoxLabel: {
-        fontSize: 11,
-        color: PALETTE.cinza,
-        fontWeight: '600',
-        marginBottom: 8,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    statBoxValue: {
-        flexDirection: 'row',
-        alignItems: 'baseline',
-        gap: 6,
-    },
-    statBoxNumber: {
-        fontSize: 22,
-        fontWeight: '800',
-    },
-    statBoxUnit: {
-        fontSize: 11,
-        color: PALETTE.cinza,
-        fontWeight: '600',
-    },
-    formCard: {
-        backgroundColor: PALETTE.branco,
-        marginHorizontal: 20,
-        marginBottom: 20,
-        borderRadius: 16,
-        padding: 20,
-        borderTopWidth: 3,
-        borderTopColor: PALETTE.verdePrimario,
-    },
-    formTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: PALETTE.preto,
-        marginBottom: 20,
-    },
-    formGroup: {
-        marginBottom: 18,
-    },
-    label: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: PALETTE.verdePrimario,
-        marginBottom: 10,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    labelHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 10,
-    },
-    inputBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: PALETTE.cinzaClaro2,
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        borderWidth: 1.5,
-        borderColor: PALETTE.verdePrimario,
-    },
-    inputIcon: {
-        fontSize: 18,
-        marginRight: 10,
-    },
-    input: {
-        flex: 1,
-        fontSize: 14,
-        color: PALETTE.preto,
-        fontWeight: '600',
-    },
-    hint: {
-        fontSize: 11,
-        color: PALETTE.cinza,
-        fontStyle: 'italic',
-        marginTop: 6,
-    },
-    optionsRow: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    optionsColumn: {
-        gap: 10,
-    },
-    optionBtn: {
-        flex: 1,
-        paddingVertical: 10,
-        paddingHorizontal: 12,
-        borderRadius: 10,
-        backgroundColor: PALETTE.cinzaClaro2,
-        borderWidth: 1.5,
-        borderColor: PALETTE.cinzaClaro2,
-        alignItems: 'center',
-    },
-    optionBtnActive: {
-        backgroundColor: PALETTE.verdeClaro2,
-        borderColor: PALETTE.verdePrimario,
-    },
-    optionText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: PALETTE.cinza,
-    },
-    optionTextActive: {
-        color: PALETTE.verdePrimario,
-    },
-    addOrigemBtn: {
-        width: 28,
-        height: 28,
-        borderRadius: 14,
-        backgroundColor: PALETTE.terracota,
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    addOrigemIcon: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: PALETTE.branco,
-    },
-    buttonGroup: {
-        marginTop: 20,
-    },
-    buttonSpacer: {
-        height: 10,
-    },
-    addBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        marginHorizontal: 20,
-        marginBottom: 20,
-        backgroundColor: PALETTE.verdePrimario,
-        borderRadius: 12,
-        paddingVertical: 14,
-        gap: 8,
-    },
-    addBtnIcon: {
-        fontSize: 24,
-        fontWeight: '700',
-        color: PALETTE.branco,
-    },
-    addBtnText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: PALETTE.branco,
-    },
-    listSection: {
-        paddingHorizontal: 20,
-    },
-    listTitle: {
-        fontSize: 16,
-        fontWeight: '700',
-        color: PALETTE.preto,
-        marginBottom: 12,
-    },
-    materialCard: {
-        backgroundColor: PALETTE.branco,
-        borderRadius: 12,
-        padding: 14,
-        marginBottom: 12,
-        borderLeftWidth: 4,
-        borderLeftColor: PALETTE.verdePrimario,
-    },
-    materialCardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 12,
-    },
-    materialCardLeft: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        flex: 1,
-    },
-    materialCardIcon: {
-        fontSize: 28,
-        marginRight: 12,
-    },
-    materialCardInfo: {
-        flex: 1,
-    },
-    materialCardTitle: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: PALETTE.preto,
-    },
-    materialCardDate: {
-        fontSize: 11,
-        color: PALETTE.cinza,
-        marginTop: 2,
-    },
-    materialCardBadge: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: PALETTE.verdeClaro2,
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 8,
-        gap: 4,
-    },
-    materialCardBadgeIcon: {
-        fontSize: 14,
-    },
-    materialCardBadgeText: {
-        fontSize: 11,
-        fontWeight: '600',
-        color: PALETTE.verdePrimario,
-    },
-    materialCardDetails: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    detailItem: {
-        flex: 1,
-    },
-    detailLabel: {
-        fontSize: 10,
-        color: PALETTE.cinza,
-        fontWeight: '500',
-        marginBottom: 4,
-        textTransform: 'uppercase',
-    },
-    detailValue: {
-        fontSize: 13,
-        fontWeight: '700',
-        color: PALETTE.preto,
-    },
-    emptyState: {
-        alignItems: 'center',
-        paddingVertical: 40,
-    },
-    emptyIcon: {
-        fontSize: 48,
-        marginBottom: 12,
-    },
-    emptyText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: PALETTE.preto,
-        marginBottom: 6,
-    },
-    emptySubtext: {
-        fontSize: 12,
-        color: PALETTE.cinza,
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0, 0, 0, 0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        paddingHorizontal: 20,
-    },
-    modalContent: {
-        backgroundColor: PALETTE.branco,
-        borderRadius: 16,
-        padding: 24,
-        width: '100%',
-    },
-    modalTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: PALETTE.preto,
-        marginBottom: 20,
-        textAlign: 'center',
-    },
-    modalLabel: {
-        fontSize: 12,
-        fontWeight: '700',
-        color: PALETTE.verdePrimario,
-        marginBottom: 10,
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    modalInputBox: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: PALETTE.cinzaClaro2,
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        paddingVertical: 12,
-        borderWidth: 1.5,
-        borderColor: PALETTE.verdePrimario,
-        marginBottom: 12,
-    },
-    modalIcon: {
-        fontSize: 18,
-        marginRight: 10,
-    },
-    modalInput: {
-        flex: 1,
-        fontSize: 14,
-        color: PALETTE.preto,
-        fontWeight: '600',
-    },
-    modalHint: {
-        fontSize: 11,
-        color: PALETTE.cinza,
-        fontStyle: 'italic',
-        marginBottom: 20,
-    },
-    modalButtons: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    modalBtnCancelar: {
-        flex: 1,
-        paddingVertical: 12,
-        borderRadius: 10,
-        backgroundColor: PALETTE.cinzaClaro2,
-        alignItems: 'center',
-    },
-    modalBtnCancelarText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: PALETTE.cinza,
-    },
-    modalBtnConfirmar: {
-        flex: 1,
-        paddingVertical: 12,
-        borderRadius: 10,
-        backgroundColor: PALETTE.verdePrimario,
-        alignItems: 'center',
-    },
-    modalBtnConfirmarText: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: PALETTE.branco,
-    },
+    container: { flex: 1, backgroundColor: PALETTE.verdeClaro },
+    scrollContent: { flexGrow: 1, paddingBottom: 30 },
+    header: { flexDirection: 'row', justifyContent: 'space-between', padding: 20, backgroundColor: PALETTE.branco },
+    backButton: { width: 40, alignItems: 'center' },
+    backIcon: { fontSize: 24, color: PALETTE.verdePrimario },
+    headerTitle: { fontSize: 18, fontWeight: 'bold' },
+    infoBox: { flexDirection: 'row', margin: 20, padding: 15, backgroundColor: PALETTE.branco, borderRadius: 12, borderLeftWidth: 4, borderLeftColor: PALETTE.terracota, alignItems: 'center' },
+    infoIcon: { fontSize: 24, marginRight: 10 },
+    infoContent: { flex: 1 },
+    infoTitle: { fontWeight: 'bold' },
+    infoText: { color: PALETTE.cinza, fontSize: 12 },
+    statsContainer: { paddingHorizontal: 20, marginBottom: 20 },
+    statBox: { backgroundColor: PALETTE.branco, borderRadius: 12, padding: 14, borderTopWidth: 3 },
+    statBoxLabel: { fontSize: 11, color: PALETTE.cinza, fontWeight: 'bold', textTransform: 'uppercase' },
+    statBoxValue: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
+    statBoxNumber: { fontSize: 22, fontWeight: '800' },
+    statBoxUnit: { fontSize: 11, color: PALETTE.cinza },
+    
+    // FORM
+    formCard: { margin: 20, padding: 20, backgroundColor: PALETTE.branco, borderRadius: 16 },
+    formTitle: { fontSize: 18, fontWeight: 'bold', marginBottom: 20 },
+    formGroup: { marginBottom: 18 },
+    label: { fontSize: 12, fontWeight: 'bold', color: PALETTE.verdePrimario, marginBottom: 8, textTransform: 'uppercase' },
+    labelHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    inputBox: { flexDirection: 'row', alignItems: 'center', backgroundColor: PALETTE.cinzaClaro2, borderRadius: 10, padding: 12, borderWidth: 1.5, borderColor: PALETTE.verdePrimario },
+    inputIcon: { fontSize: 18, marginRight: 10 },
+    input: { flex: 1, fontWeight: '600' },
+    optionsRow: { flexDirection: 'row', gap: 10 },
+    optionsColumn: { gap: 10 },
+    optionBtn: { flex: 1, padding: 12, borderRadius: 10, backgroundColor: PALETTE.cinzaClaro2, alignItems: 'center' },
+    optionBtnActive: { backgroundColor: PALETTE.verdeClaro2, borderColor: PALETTE.verdePrimario, borderWidth: 1 },
+    optionText: { fontSize: 12, fontWeight: '600', color: PALETTE.cinza },
+    optionTextActive: { color: PALETTE.verdePrimario },
+    addOrigemBtn: { backgroundColor: PALETTE.terracota, width: 24, height: 24, borderRadius: 12, alignItems: 'center', justifyContent: 'center' },
+    addOrigemIcon: { color: PALETTE.branco, fontWeight: 'bold' },
+    buttonGroup: { marginTop: 20 },
+    buttonSpacer: { height: 10 },
+    addBtn: { flexDirection: 'row', margin: 20, backgroundColor: PALETTE.verdePrimario, padding: 15, borderRadius: 12, alignItems: 'center', justifyContent: 'center', gap: 8 },
+    addBtnIcon: { color: PALETTE.branco, fontSize: 24, fontWeight: 'bold' },
+    addBtnText: { color: PALETTE.branco, fontWeight: 'bold' },
+
+    // PISCINÃO
+    piscinaoBox: { 
+        flexDirection: 'row', 
+        alignItems: 'center', 
+        backgroundColor: PALETTE.azulClaro, 
+        padding: 12, 
+        borderRadius: 8, 
+        marginBottom: 15,
+        borderWidth: 1,
+        borderColor: PALETTE.azulPiscinao
+    },
+    piscinaoTitle: { fontWeight: 'bold', color: PALETTE.azulPiscinao, fontSize: 14 },
+    piscinaoDesc: { fontSize: 11, color: PALETTE.cinza },
+    piscinaoBadge: { 
+        marginTop: 8, 
+        backgroundColor: PALETTE.azulClaro, 
+        paddingVertical: 4, 
+        paddingHorizontal: 8, 
+        borderRadius: 4, 
+        alignSelf: 'flex-start',
+        marginBottom: 8
+    },
+    piscinaoBadgeText: { color: PALETTE.azulPiscinao, fontSize: 11, fontWeight: 'bold' },
+
+    // LIST
+    listSection: { paddingHorizontal: 20 },
+    listTitle: { fontSize: 16, fontWeight: 'bold', marginBottom: 12 },
+    materialCard: { backgroundColor: PALETTE.branco, borderRadius: 12, padding: 14, marginBottom: 12, borderLeftWidth: 4, borderLeftColor: PALETTE.verdePrimario },
+    materialCardPiscinao: { borderLeftColor: PALETTE.azulPiscinao, backgroundColor: '#F8FDFF' },
+    materialCardHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 10 },
+    materialCardLeft: { flexDirection: 'row', alignItems: 'center', flex: 1 },
+    materialCardIcon: { fontSize: 24, marginRight: 10 },
+    materialCardInfo: { flex: 1 },
+    materialCardTitle: { fontWeight: 'bold' },
+    materialCardDate: { fontSize: 11, color: PALETTE.cinza },
+    materialCardBadge: { backgroundColor: PALETTE.verdeClaro2, padding: 6, borderRadius: 6 },
+    materialCardBadgeText: { fontSize: 11, color: PALETTE.verdePrimario, fontWeight: 'bold' },
+    materialCardDetails: { flexDirection: 'row', gap: 15 },
+    detailItem: { flex: 1 },
+    detailLabel: { fontSize: 10, color: PALETTE.cinza, fontWeight: 'bold', textTransform: 'uppercase' },
+    detailValue: { fontWeight: 'bold' },
+    emptyState: { alignItems: 'center', padding: 40 },
+    emptyIcon: { fontSize: 40, marginBottom: 10 },
+    emptyText: { fontWeight: 'bold' },
+
+    // MODAL
+    modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', padding: 20 },
+    modalContent: { backgroundColor: PALETTE.branco, borderRadius: 16, padding: 20 },
+    modalTitle: { fontSize: 18, fontWeight: 'bold', textAlign: 'center', marginBottom: 20 },
+    modalInputBox: { backgroundColor: PALETTE.cinzaClaro2, borderRadius: 10, padding: 12, marginBottom: 20 },
+    modalInput: { fontSize: 16 },
+    modalButtons: { flexDirection: 'row', gap: 10 },
+    modalBtnCancelar: { flex: 1, padding: 12, backgroundColor: PALETTE.cinzaClaro2, borderRadius: 10, alignItems: 'center' },
+    modalBtnCancelarText: { fontWeight: 'bold', color: PALETTE.cinza },
+    modalBtnConfirmar: { flex: 1, padding: 12, backgroundColor: PALETTE.verdePrimario, borderRadius: 10, alignItems: 'center' },
+    modalBtnConfirmarText: { fontWeight: 'bold', color: PALETTE.branco },
 });

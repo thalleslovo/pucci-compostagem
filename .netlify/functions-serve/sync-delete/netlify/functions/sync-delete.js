@@ -13569,12 +13569,12 @@ var require_main5 = __commonJS({
   }
 });
 
-// netlify/functions/sync-materiais.ts
-var sync_materiais_exports = {};
-__export(sync_materiais_exports, {
+// netlify/functions/sync-delete.ts
+var sync_delete_exports = {};
+__export(sync_delete_exports, {
   handler: () => handler
 });
-module.exports = __toCommonJS(sync_materiais_exports);
+module.exports = __toCommonJS(sync_delete_exports);
 
 // node_modules/@supabase/supabase-js/dist/esm/wrapper.mjs
 var index = __toESM(require_main5(), 1);
@@ -13624,60 +13624,49 @@ var {
   REALTIME_CHANNEL_STATES
 } = index.default || index;
 
-// netlify/functions/sync-materiais.ts
+// netlify/functions/sync-delete.ts
 var supabase = createClient(
-  process.env.SUPABASE_URL || "https://xpcxuonqffewtsmwlato.supabase.co",
-  process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
 );
-var USUARIO_ID = "116609f9-53c2-4289-9a63-0174fad8148e";
 var handler = async (event) => {
   const headers = {
     "Access-Control-Allow-Origin": "*",
     "Access-Control-Allow-Headers": "Content-Type",
     "Access-Control-Allow-Methods": "POST, OPTIONS"
   };
-  if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers, body: "" };
+  if (event.httpMethod === "OPTIONS") {
+    return { statusCode: 200, headers, body: "" };
+  }
   try {
-    const body = JSON.parse(event.body || "{}");
-    const materiais = body.materiais || [];
-    if (materiais.length > 0) {
-      console.log("\u{1F575}\uFE0F DEBUG - Verificando primeiro item:");
-      console.log("Tipo:", materiais[0].tipoMaterial);
-      console.log("Destino recebido:", materiais[0].destino);
-    }
-    const agora = (/* @__PURE__ */ new Date()).toISOString();
-    let sincronizados = 0;
-    for (const material of materiais) {
-      const destinoFinal = material.destino || "patio";
-      const { error } = await supabase.from("materiais_registrados").upsert({
-        id: material.id,
-        usuario_id: USUARIO_ID,
-        data: material.data,
-        tipomaterial: material.tipoMaterial,
-        numeromtr: material.numeroMTR || null,
-        peso: material.peso,
-        origem: material.origem,
-        destino: destinoFinal,
-        // ✅ Usa o valor definido acima
-        sincronizado: true,
-        sincronizado_em: agora,
-        criado_em: agora,
-        atualizado_em: agora
-      }, { onConflict: "id" });
-      if (!error) sincronizados++;
+    const { tabela, itens } = JSON.parse(event.body || "{}");
+    const mapaTabelas = {
+      "leiras": "leiras",
+      "clima": "monitoramento_clima",
+      "monitoramento": "monitoramentos",
+      "material": "materiais"
+    };
+    const tabelaReal = mapaTabelas[tabela] || tabela;
+    const ids = itens.map((i) => i.id);
+    if (ids.length > 0) {
+      const { error } = await supabase.from(tabelaReal).delete().in("id", ids);
+      if (error) throw error;
     }
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ sucesso: true, sincronizados })
+      body: JSON.stringify({ deletados: ids.length, sucesso: true })
     };
   } catch (error) {
-    console.error("Erro:", error);
-    return { statusCode: 500, headers, body: JSON.stringify({ erro: error.message }) };
+    return {
+      statusCode: 500,
+      headers,
+      body: JSON.stringify({ erro: error.message })
+    };
   }
 };
 // Annotate the CommonJS export names for ESM import in node:
 0 && (module.exports = {
   handler
 });
-//# sourceMappingURL=sync-materiais.js.map
+//# sourceMappingURL=sync-delete.js.map

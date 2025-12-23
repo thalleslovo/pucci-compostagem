@@ -189,6 +189,7 @@ export default function DashboardScreen() {
   };
 
   // ===== FUNÇÃO DE LOGOUT =====
+    // ===== FUNÇÃO DE LOGOUT =====
   const handleLogout = () => {
     Alert.alert(
       'Desconectar',
@@ -203,7 +204,9 @@ export default function DashboardScreen() {
           text: 'Sair',
           onPress: async () => {
             try {
-              await authService.removePIN();
+              // ❌ REMOVI A LINHA: await authService.removePIN();
+              // Agora o PIN continua salvo, e o usuário só precisa digitá-lo novamente.
+              
               router.replace('/(auth)/login');
             } catch (error) {
               Alert.alert('Erro', 'Erro ao desconectar');

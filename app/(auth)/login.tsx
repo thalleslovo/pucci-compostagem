@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  TouchableOpacity,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -92,7 +93,34 @@ export default function LoginScreen() {
     return true;
   };
 
-  // ===== FUNÇÃO CORRIGIDA: Salvar Operador =====
+  // ===== FUNÇÃO: Esqueci a Senha =====
+  const handleForgotPIN = () => {
+    Alert.alert(
+      'Esqueceu o PIN?',
+      'Para criar um novo PIN, o acesso atual será resetado. Todos os dados não sincronizados podem ser perdidos. Deseja continuar?',
+      [
+        { text: 'Cancelar', style: 'cancel' },
+        {
+          text: 'Redefinir Acesso',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              await authService.removePIN();
+              setHasPIN(false); // Muda o estado para mostrar a tela de cadastro
+              setPin('');
+              Alert.alert('Acesso Resetado', 'Agora você pode criar um novo PIN.');
+            } catch (error) {
+              Alert.alert('Erro', 'Não foi possível resetar o acesso.');
+            } finally {
+              setLoading(false);
+            }
+          },
+        },
+      ]
+    );
+  };
+
   const handleLogin = async () => {
     if (!validatePIN(pin)) return;
 
@@ -100,7 +128,6 @@ export default function LoginScreen() {
     try {
       const isValid = await authService.validatePIN(pin);
       if (isValid) {
-        // ✅ SALVAR OPERADOR NO ASYNCSTORAGE
         const operador = {
           id: 'operador-001',
           nome: 'Pucci Ambiental',
@@ -186,6 +213,7 @@ export default function LoginScreen() {
                   setPinError('');
                 }}
                 onLogin={handleLogin}
+                onForgotPIN={handleForgotPIN} // Passando a função nova
               />
             ) : (
               <CreatePINView
@@ -225,9 +253,10 @@ interface LoginViewProps {
   loading: boolean;
   onPinChange: (text: string) => void;
   onLogin: () => void;
+  onForgotPIN: () => void; // Nova prop
 }
 
-function LoginView({ pin, pinError, loading, onPinChange, onLogin }: LoginViewProps) {
+function LoginView({ pin, pinError, loading, onPinChange, onLogin, onForgotPIN }: LoginViewProps) {
   return (
     <View style={styles.card}>
       <View style={styles.cardHeader}>
@@ -258,6 +287,11 @@ function LoginView({ pin, pinError, loading, onPinChange, onLogin }: LoginViewPr
           />
         </View>
         {pinError && <Text style={styles.errorMessage}>{pinError}</Text>}
+
+        {/* BOTÃO ESQUECEU A SENHA */}
+        <TouchableOpacity style={styles.forgotButton} onPress={onForgotPIN}>
+          <Text style={styles.forgotButtonText}>Esqueceu seu PIN?</Text>
+        </TouchableOpacity>
 
         {pin.length > 0 && !pinError && (
           <View style={styles.pinIndicator}>
@@ -550,6 +584,18 @@ const styles = StyleSheet.create({
     color: PALETTE.erro,
     fontWeight: '600',
     marginBottom: 10,
+  },
+  forgotButton: {
+    alignSelf: 'flex-end',
+    paddingVertical: 8,
+    paddingHorizontal: 4,
+    marginBottom: 10,
+  },
+  forgotButtonText: {
+    fontSize: 13,
+    color: PALETTE.terracota,
+    fontWeight: '600',
+    textDecorationLine: 'underline',
   },
   pinIndicator: {
     flexDirection: 'row',

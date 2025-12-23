@@ -6,6 +6,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
 );
 
+
 interface Material {
   id: string;
   data: string;
@@ -13,52 +14,44 @@ interface Material {
   numeroMTR: string;
   peso: number;
   origem: string;
+  destino?: string; 
 }
 
-// ✅ USE O UUID DO USUÁRIO QUE VOCÊ QUER
-const USUARIO_ID = '116609f9-53c2-4289-9a63-0174fad8148e'; // Pucci Ambiental
+const USUARIO_ID = '116609f9-53c2-4289-9a63-0174fad8148e'; 
 
 export const handler: Handler = async (event) => {
-  console.log("🔄 Função sync-materiais acionada");
-  console.log("🔍 DEBUG - body recebido:", JSON.stringify(event.body));
+  // CORS
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+  };
 
-  if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "Método não permitido" }),
-    };
-  }
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
   try {
     const body = JSON.parse(event.body || "{}");
     const materiais: Material[] = body.materiais || [];
-    const operadorNome = body.operadorNome || "Desconhecido";
 
-    console.log(`📤 Recebido: ${materiais.length} materiais do operador ${operadorNome}`);
-    console.log(`🔍 DEBUG - Usando usuarioId: ${USUARIO_ID}`);
-
-    if (materiais.length === 0) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          sucesso: true,
-          sincronizados: 0,
-          detalhes: [],
-        }),
-      };
+    // ===== ESPIÃO DE DEBUG =====
+    // Isso vai aparecer no log do Netlify quando você sincronizar
+    if (materiais.length > 0) {
+        console.log("🕵️ DEBUG - Verificando primeiro item:");
+        console.log("Tipo:", materiais[0].tipoMaterial);
+        console.log("Destino recebido:", materiais[0].destino); 
     }
+    // ===========================
 
-    const resultados = [];
-    let sincronizados = 0;
     const agora = new Date().toISOString();
+    let sincronizados = 0;
 
     for (const material of materiais) {
-      try {
-        console.log(`💪 Processando material: ${material.id}`);
+        // Lógica de segurança: Se não vier nada, assume patio
+        const destinoFinal = material.destino || 'patio';
 
-        const { data, error } = await supabase
+        const { error } = await supabase
           .from("materiais_registrados")
-          .insert({
+          .upsert({
             id: material.id,
             usuario_id: USUARIO_ID,
             data: material.data,
@@ -66,57 +59,25 @@ export const handler: Handler = async (event) => {
             numeromtr: material.numeroMTR || null,
             peso: material.peso,
             origem: material.origem,
+            
+            destino: destinoFinal, // ✅ Usa o valor definido acima
+
             sincronizado: true,
             sincronizado_em: agora,
-            criado_em: agora,
+            criado_em: agora, 
             atualizado_em: agora,
-          });
+          }, { onConflict: 'id' });
 
-        if (error) {
-          console.error(`❌ Erro ao inserir material:`, error.message);
-          resultados.push({
-            id: material.id,
-            status: "erro",
-            erro: error.message,
-          });
-        } else {
-          console.log(`✅ Material inserido com sucesso`);
-          sincronizados++;
-          resultados.push({
-            id: material.id,
-            status: "inserido",
-          });
-        }
-      } catch (err) {
-        console.error(`❌ Erro ao processar material:`, err);
-        resultados.push({
-          id: material.id,
-          status: "erro",
-          erro: String(err),
-        });
-      }
+        if (!error) sincronizados++;
     }
-
-    console.log(`✅ Sincronização concluída: ${sincronizados}/${materiais.length} inseridos`);
 
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        sucesso: true,
-        sincronizados,
-        erros: resultados.filter(r => r.status === "erro").length,
-        detalhes: resultados,
-      }),
+      headers,
+      body: JSON.stringify({ sucesso: true, sincronizados }),
     };
-  } catch (error) {
-    console.error("❌ Erro geral na sincronização:", error);
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        sucesso: false,
-        erro: "Erro ao sincronizar dados",
-        detalhes: String(error),
-      }),
-    };
+  } catch (error: any) {
+    console.error("Erro:", error);
+    return { statusCode: 500, headers, body: JSON.stringify({ erro: error.message }) };
   }
 };

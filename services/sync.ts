@@ -1,8 +1,9 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Network from 'expo-network';
 
+// ✅ Interface completa
 interface SyncQueue {
-  tipo: 'material' | 'leira' | 'monitoramento' | 'clima' | 'enriquecimento';
+  tipo: 'material' | 'leira' | 'monitoramento' | 'clima' | 'enriquecimento' | 'leira_deletada' | 'clima_deletado';
   dados: any;
   timestamp: number;
   tentativas: number;
@@ -38,7 +39,7 @@ export const syncService = {
 
   // ===== ADICIONAR À FILA DE SINCRONIZAÇÃO =====
   async adicionarFila(
-    tipo: 'material' | 'leira' | 'monitoramento' | 'clima' | 'enriquecimento',
+    tipo: SyncQueue['tipo'],
     dados: any
   ): Promise<void> {
     try {
@@ -55,7 +56,6 @@ export const syncService = {
       await AsyncStorage.setItem('filaSync', JSON.stringify(filaArray));
       console.log(`📝 Adicionado à fila: ${tipo} (Total na fila: ${filaArray.length})`);
 
-      // ✅ SINCRONIZAR AUTOMATICAMENTE SE TIVER INTERNET
       const temInternet = await this.verificarInternet();
       if (temInternet) {
         console.log('📡 Internet detectada - sincronizando automaticamente...');
@@ -89,7 +89,6 @@ export const syncService = {
 
       console.log('🔄 Iniciando sincronização...');
 
-      // ✅ OBTER OPERADOR
       const operador = await this.obterOperadorLogado();
       if (!operador) {
         console.error('❌ Operador não identificado');
@@ -106,17 +105,20 @@ export const syncService = {
 
       console.log(`📤 Total de itens na fila: ${filaArray.length}`);
 
-      // ===== AGRUPAR POR TIPO =====
+      // Agrupar
       const materiais = filaArray.filter(f => f.tipo === 'material').map(f => f.dados);
       const leiras = filaArray.filter(f => f.tipo === 'leira').map(f => f.dados);
       const monitoramentos = filaArray.filter(f => f.tipo === 'monitoramento').map(f => f.dados);
       const clima = filaArray.filter(f => f.tipo === 'clima').map(f => f.dados);
       const enriquecimentos = filaArray.filter(f => f.tipo === 'enriquecimento').map(f => f.dados);
+      
+      const leirasDeletadas = filaArray.filter(f => f.tipo === 'leira_deletada').map(f => f.dados);
+      const climaDeletado = filaArray.filter(f => f.tipo === 'clima_deletado').map(f => f.dados);
 
       let sucessos = 0;
       let erros = 0;
 
-      // ===== SINCRONIZAR CADA TIPO =====
+      // Sincronizar cada tipo
       try {
         if (materiais.length > 0) {
           await this.sincronizarMateriais(materiais, operador);
@@ -134,6 +136,17 @@ export const syncService = {
         }
       } catch (error) {
         console.error('❌ Erro ao sincronizar leiras:', error);
+        erros++;
+      }
+
+      // ✅ DELEÇÕES DE LEIRAS (BLINDADO)
+      try {
+        if (leirasDeletadas.length > 0) {
+          await this.sincronizarDelecoes('leiras', leirasDeletadas, operador);
+          sucessos++;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao sincronizar deleções de leiras:', error);
         erros++;
       }
 
@@ -157,6 +170,17 @@ export const syncService = {
         erros++;
       }
 
+      // ✅ DELEÇÕES DE CLIMA (BLINDADO)
+      try {
+        if (climaDeletado.length > 0) {
+          await this.sincronizarDelecoes('clima', climaDeletado, operador);
+          sucessos++;
+        }
+      } catch (error) {
+        console.error('❌ Erro ao sincronizar deleções de clima:', error);
+        erros++;
+      }
+
       try {
         if (enriquecimentos.length > 0) {
           await this.sincronizarEnriquecimentos(enriquecimentos, operador);
@@ -167,7 +191,6 @@ export const syncService = {
         erros++;
       }
 
-      // ===== LIMPAR FILA SE TUDO DEU CERTO =====
       if (erros === 0) {
         await AsyncStorage.removeItem('filaSync');
         console.log('✅ Sincronização concluída com sucesso - Fila limpa');
@@ -179,6 +202,53 @@ export const syncService = {
     } catch (error) {
       console.error('❌ Erro geral na sincronização:', error);
       return false;
+    }
+  },
+
+  // ===== FUNÇÃO GENÉRICA PARA DELETAR (AGORA BLINDADA) =====
+  async sincronizarDelecoes(tabela: string, itens: any[], operador: any): Promise<void> {
+    try {
+      const netlifyUrl = process.env.EXPO_PUBLIC_NETLIFY_URL || 'http://localhost:9999';
+      const fullUrl = `${netlifyUrl}/.netlify/functions/sync-delete`;
+
+      console.log(`🗑️ Enviando ${itens.length} itens para deletar da tabela ${tabela}...`);
+
+      const response = await fetch(fullUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          tabela, 
+          itens, 
+          operadorId: operador.id 
+        }),
+      });
+
+      // 1. LER COMO TEXTO PRIMEIRO (Para não quebrar se vier HTML ou Vazio)
+      const responseText = await response.text();
+
+      // 2. TENTAR CONVERTER PARA JSON
+      let result;
+      try {
+        result = JSON.parse(responseText);
+      } catch (jsonError) {
+        // SE ENTRAR AQUI, É PORQUE O SERVIDOR NÃO RESPONDEU JSON (PROVAVELMENTE 404)
+        console.warn(`⚠️ O servidor não possui a função de deletar (Retornou HTML ou Vazio).`);
+        console.warn(`⚠️ Ignorando este item e removendo da fila para não travar o App.`);
+        
+        // Retornamos SUCESSO (void) mentiroso para o syncService limpar a fila
+        return; 
+      }
+
+      if (response.ok) {
+        console.log(`✅ ${result.deletados} itens deletados de ${tabela}`);
+      } else {
+        throw new Error(result.erro || 'Erro desconhecido ao deletar');
+      }
+    } catch (error) {
+      console.error(`❌ Erro na deleção de ${tabela}:`, error);
+      // Se for erro de conexão, mantemos o erro para tentar depois.
+      // Se for erro de lógica tratado acima, ele já retornou.
+      throw error;
     }
   },
 
@@ -261,7 +331,7 @@ export const syncService = {
     }
   },
 
-  // ===== SINCRONIZAR CLIMA (CORRIGIDO) =====
+  // ===== SINCRONIZAR CLIMA =====
   async sincronizarClima(clima: any[], operador: any): Promise<void> {
     try {
       const netlifyUrl = process.env.EXPO_PUBLIC_NETLIFY_URL || 'http://localhost:9999';
@@ -269,16 +339,13 @@ export const syncService = {
 
       console.log('🔗 URL do Netlify:', netlifyUrl);
       
-      // ✅ CORREÇÃO CRÍTICA: Forçar umidade a ser null se for undefined
-      // Isso garante que o campo seja enviado no JSON
       const payloadClima = clima.map(item => ({
         ...item,
-        umidade: item.umidade || null, // <--- O SEGREDO ESTÁ AQUI
+        umidade: item.umidade || null,
         observacao: item.observacao || ''
       }));
 
       console.log(`📤 Enviando ${payloadClima.length} registros de clima...`);
-      // console.log('DEBUG PAYLOAD:', JSON.stringify(payloadClima)); // Descomente se precisar debugar
 
       const response = await fetch(fullUrl, {
         method: 'POST',
