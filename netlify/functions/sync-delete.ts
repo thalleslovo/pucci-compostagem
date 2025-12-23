@@ -18,39 +18,60 @@ export const handler: Handler = async (event) => {
   }
 
   try {
-    const { tabela, itens } = JSON.parse(event.body || '{}');
+    const body = JSON.parse(event.body || '{}');
+    const { tabela, itens } = body;
 
-    // Mapeia o nome do App para o nome real no Banco
+    console.log(`🗑️ Pedido de delete: Tabela '${tabela}', ${itens?.length} itens`);
+
+    if (!itens || itens.length === 0) {
+      return { statusCode: 200, headers, body: JSON.stringify({ deletados: 0 }) };
+    }
+
+    // ✅ MAPA DE TABELAS CORRIGIDO
     const mapaTabelas: Record<string, string> = {
-      'leiras': 'leiras',
+      // Quando o App pede 'leiras', o Backend apaga em 'leiras_formadas'
+      'leira': 'leiras_formadas',
+      'leiras': 'leiras_formadas',
+      
       'clima': 'monitoramento_clima',
       'monitoramento': 'monitoramentos',
-      'material': 'materiais'
+      'material': 'materiais_registrados',
+      'materiais': 'materiais_registrados'
     };
 
+    // Pega o nome real ou usa o que veio (fallback)
     const tabelaReal = mapaTabelas[tabela] || tabela;
-    const ids = itens.map((i: any) => i.id);
+    const idsParaDeletar = itens.map((i: any) => i.id);
 
-    if (ids.length > 0) {
-      const { error } = await supabase
-        .from(tabelaReal)
-        .delete()
-        .in('id', ids);
+    console.log(`🎯 Deletando da tabela real: '${tabelaReal}'`);
 
-      if (error) throw error;
+    const { error, count } = await supabase
+      .from(tabelaReal)
+      .delete({ count: 'exact' })
+      .in('id', idsParaDeletar);
+
+    if (error) {
+      console.error('❌ Erro Supabase:', error.message);
+      throw error;
     }
+
+    console.log(`✅ Sucesso! ${count} registros apagados de ${tabelaReal}.`);
 
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ deletados: ids.length, sucesso: true }),
+      body: JSON.stringify({ deletados: count, sucesso: true }),
     };
 
   } catch (error: any) {
+    console.error('❌ Erro Geral:', error);
     return {
       statusCode: 500,
       headers,
-      body: JSON.stringify({ erro: error.message }),
+      body: JSON.stringify({ 
+        erro: error.message || 'Erro interno ao deletar',
+        sucesso: false
+      }),
     };
   }
 };
