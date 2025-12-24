@@ -1,49 +1,71 @@
-const { createClient } = require('@supabase/supabase-js');
+import { Handler } from "@netlify/functions";
+import { createClient } from "@supabase/supabase-js";
 
-// Seus dados
-const supabaseUrl = "https://xpcxuonqffewtsmwlato.supabase.co";
-const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE";
+const supabase = createClient(
+  process.env.SUPABASE_URL || "https://xpcxuonqffewtsmwlato.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
+);
 
-const supabase = createClient(supabaseUrl, supabaseKey);
 
-async function diagnostico() {
-  console.log("🕵️ TESTANDO TABELA DE LEIRAS (NOMES ANTIGOS)...");
+const USUARIO_ID = '116609f9-53c2-4289-9a63-0174fad8148e';
 
-  const ID_TESTE = '116609f9-53c2-4289-9a63-0174fad8148e'; 
-
-  const payload = {
-    id: `teste-${Date.now()}`,
-    usuario_id: ID_TESTE,
-    
-    // NOMES DO CÓDIGO ANTIGO
-    numeroleira: 888,
-    lote: 'TESTE-DEBUG',
-    dataformacao: '24/12/2025', // Formato BR que seu código antigo usava
-    status: 'formada',
-    bagaço: 10,
-    totalbiossólido: 50, // Com acento
-    
-    // NOVA COLUNA
-    tipo_formacao: 'PISCINAO' 
+export const handler: Handler = async (event) => {
+  const headers = {
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Headers': 'Content-Type',
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
   };
 
-  console.log("📤 Tentando inserir:", payload);
+  if (event.httpMethod === 'OPTIONS') return { statusCode: 200, headers, body: '' };
 
-  const { data, error } = await supabase
-    .from('leiras_formadas')
-    .insert(payload)
-    .select();
+  try {
+    const body = JSON.parse(event.body || "{}");
+    const leiras = body.leiras || [];
 
-  if (error) {
-    console.log("\n❌ ERRO ENCONTRADO:");
-    console.log(`Mensagem: ${error.message}`);
-    console.log(`Código: ${error.code}`);
-    console.log(`Detalhes: ${error.details || 'Sem detalhes'}`);
-    console.log(`Hint: ${error.hint || 'Sem dica'}`);
-  } else {
-    console.log("\n✅ SUCESSO! O banco aceitou.");
-    await supabase.from('leiras_formadas').delete().eq('id', payload.id);
+    if (leiras.length === 0) return { statusCode: 200, headers, body: JSON.stringify({ message: "Vazio" }) };
+
+    const agora = new Date().toISOString();
+    const erros = [];
+
+    for (const leira of leiras) {
+      // 1. Define Origem
+      let origemLeira = 'MTR';
+      if (leira.tipoFormacao === 'MANUAL') origemLeira = 'PISCINAO';
+
+      // 2. Payload Exato para sua Tabela
+      const payload = {
+        id: leira.id,
+        usuario_id: USUARIO_ID, // Agora vai aceitar mesmo se não existir na tabela usuarios
+        numeroleira: leira.numeroLeira,
+        lote: leira.lote,
+        dataformacao: leira.dataFormacao, // Manda como string mesmo (DD/MM/YYYY)
+        status: leira.status,
+        bagaço: leira.bagaço || 12,
+        totalbiossólido: leira.totalBiossólido || 0, // Com acento, igual ao banco
+        tipo_formacao: origemLeira,
+        sincronizado: true,
+        sincronizado_em: agora,
+        criado_em: agora,
+        atualizado_em: agora
+      };
+
+      const { error } = await supabase
+        .from("leiras_formadas")
+        .upsert(payload, { onConflict: 'id' });
+
+      if (error) {
+        console.error(`❌ Erro Leira ${leira.numeroLeira}:`, error.message);
+        erros.push(error.message);
+      }
+    }
+
+    if (erros.length > 0) {
+      return { statusCode: 500, headers, body: JSON.stringify({ sucesso: false, erro: erros[0] }) };
+    }
+
+    return { statusCode: 200, headers, body: JSON.stringify({ sucesso: true }) };
+
+  } catch (error: any) {
+    return { statusCode: 500, headers, body: JSON.stringify({ erro: error.message }) };
   }
-}
-
-diagnostico();
+};

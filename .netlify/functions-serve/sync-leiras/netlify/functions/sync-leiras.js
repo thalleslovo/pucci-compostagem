@@ -1,7 +1,9 @@
 "use strict";
+var __create = Object.create;
 var __defProp = Object.defineProperty;
 var __getOwnPropDesc = Object.getOwnPropertyDescriptor;
 var __getOwnPropNames = Object.getOwnPropertyNames;
+var __getProtoOf = Object.getPrototypeOf;
 var __hasOwnProp = Object.prototype.hasOwnProperty;
 var __esm = (fn, res) => function __init() {
   return fn && (res = (0, fn[__getOwnPropNames(fn)[0]])(fn = 0)), res;
@@ -21,6 +23,14 @@ var __copyProps = (to, from, except, desc) => {
   }
   return to;
 };
+var __toESM = (mod, isNodeMode, target) => (target = mod != null ? __create(__getProtoOf(mod)) : {}, __copyProps(
+  // If the importer is in node compatibility mode or this is not an ESM
+  // file that has been converted to a CommonJS file using a Babel-
+  // compatible transform (i.e. "__esModule" has not been set), then set
+  // "default" to the CommonJS "module.exports" for node compatibility.
+  isNodeMode || !mod || !mod.__esModule ? __defProp(target, "default", { value: mod, enumerable: true }) : target,
+  mod
+));
 var __toCommonJS = (mod) => __copyProps(__defProp({}, "__esModule", { value: true }), mod);
 
 // node_modules/tslib/tslib.es6.mjs
@@ -570,50 +580,50 @@ var require_types = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.FunctionRegion = exports2.FunctionsHttpError = exports2.FunctionsRelayError = exports2.FunctionsFetchError = exports2.FunctionsError = void 0;
-    var FunctionsError = class extends Error {
+    var FunctionsError2 = class extends Error {
       constructor(message, name = "FunctionsError", context) {
         super(message);
         this.name = name;
         this.context = context;
       }
     };
-    exports2.FunctionsError = FunctionsError;
-    var FunctionsFetchError = class extends FunctionsError {
+    exports2.FunctionsError = FunctionsError2;
+    var FunctionsFetchError2 = class extends FunctionsError2 {
       constructor(context) {
         super("Failed to send a request to the Edge Function", "FunctionsFetchError", context);
       }
     };
-    exports2.FunctionsFetchError = FunctionsFetchError;
-    var FunctionsRelayError = class extends FunctionsError {
+    exports2.FunctionsFetchError = FunctionsFetchError2;
+    var FunctionsRelayError2 = class extends FunctionsError2 {
       constructor(context) {
         super("Relay Error invoking the Edge Function", "FunctionsRelayError", context);
       }
     };
-    exports2.FunctionsRelayError = FunctionsRelayError;
-    var FunctionsHttpError = class extends FunctionsError {
+    exports2.FunctionsRelayError = FunctionsRelayError2;
+    var FunctionsHttpError2 = class extends FunctionsError2 {
       constructor(context) {
         super("Edge Function returned a non-2xx status code", "FunctionsHttpError", context);
       }
     };
-    exports2.FunctionsHttpError = FunctionsHttpError;
-    var FunctionRegion;
-    (function(FunctionRegion2) {
-      FunctionRegion2["Any"] = "any";
-      FunctionRegion2["ApNortheast1"] = "ap-northeast-1";
-      FunctionRegion2["ApNortheast2"] = "ap-northeast-2";
-      FunctionRegion2["ApSouth1"] = "ap-south-1";
-      FunctionRegion2["ApSoutheast1"] = "ap-southeast-1";
-      FunctionRegion2["ApSoutheast2"] = "ap-southeast-2";
-      FunctionRegion2["CaCentral1"] = "ca-central-1";
-      FunctionRegion2["EuCentral1"] = "eu-central-1";
-      FunctionRegion2["EuWest1"] = "eu-west-1";
-      FunctionRegion2["EuWest2"] = "eu-west-2";
-      FunctionRegion2["EuWest3"] = "eu-west-3";
-      FunctionRegion2["SaEast1"] = "sa-east-1";
-      FunctionRegion2["UsEast1"] = "us-east-1";
-      FunctionRegion2["UsWest1"] = "us-west-1";
-      FunctionRegion2["UsWest2"] = "us-west-2";
-    })(FunctionRegion || (exports2.FunctionRegion = FunctionRegion = {}));
+    exports2.FunctionsHttpError = FunctionsHttpError2;
+    var FunctionRegion2;
+    (function(FunctionRegion3) {
+      FunctionRegion3["Any"] = "any";
+      FunctionRegion3["ApNortheast1"] = "ap-northeast-1";
+      FunctionRegion3["ApNortheast2"] = "ap-northeast-2";
+      FunctionRegion3["ApSouth1"] = "ap-south-1";
+      FunctionRegion3["ApSoutheast1"] = "ap-southeast-1";
+      FunctionRegion3["ApSoutheast2"] = "ap-southeast-2";
+      FunctionRegion3["CaCentral1"] = "ca-central-1";
+      FunctionRegion3["EuCentral1"] = "eu-central-1";
+      FunctionRegion3["EuWest1"] = "eu-west-1";
+      FunctionRegion3["EuWest2"] = "eu-west-2";
+      FunctionRegion3["EuWest3"] = "eu-west-3";
+      FunctionRegion3["SaEast1"] = "sa-east-1";
+      FunctionRegion3["UsEast1"] = "us-east-1";
+      FunctionRegion3["UsWest1"] = "us-west-1";
+      FunctionRegion3["UsWest2"] = "us-west-2";
+    })(FunctionRegion2 || (exports2.FunctionRegion = FunctionRegion2 = {}));
   }
 });
 
@@ -798,7 +808,7 @@ var require_PostgrestError = __commonJS({
   "node_modules/@supabase/postgrest-js/dist/cjs/PostgrestError.js"(exports2) {
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
-    var PostgrestError = class extends Error {
+    var PostgrestError2 = class extends Error {
       /**
        * @example
        * ```ts
@@ -820,7 +830,7 @@ var require_PostgrestError = __commonJS({
         this.code = context.code;
       }
     };
-    exports2.default = PostgrestError;
+    exports2.default = PostgrestError2;
   }
 });
 
@@ -2799,13 +2809,13 @@ var require_RealtimePresence = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.REALTIME_PRESENCE_LISTEN_EVENTS = void 0;
-    var REALTIME_PRESENCE_LISTEN_EVENTS;
-    (function(REALTIME_PRESENCE_LISTEN_EVENTS2) {
-      REALTIME_PRESENCE_LISTEN_EVENTS2["SYNC"] = "sync";
-      REALTIME_PRESENCE_LISTEN_EVENTS2["JOIN"] = "join";
-      REALTIME_PRESENCE_LISTEN_EVENTS2["LEAVE"] = "leave";
-    })(REALTIME_PRESENCE_LISTEN_EVENTS || (exports2.REALTIME_PRESENCE_LISTEN_EVENTS = REALTIME_PRESENCE_LISTEN_EVENTS = {}));
-    var RealtimePresence = class _RealtimePresence {
+    var REALTIME_PRESENCE_LISTEN_EVENTS2;
+    (function(REALTIME_PRESENCE_LISTEN_EVENTS3) {
+      REALTIME_PRESENCE_LISTEN_EVENTS3["SYNC"] = "sync";
+      REALTIME_PRESENCE_LISTEN_EVENTS3["JOIN"] = "join";
+      REALTIME_PRESENCE_LISTEN_EVENTS3["LEAVE"] = "leave";
+    })(REALTIME_PRESENCE_LISTEN_EVENTS2 || (exports2.REALTIME_PRESENCE_LISTEN_EVENTS = REALTIME_PRESENCE_LISTEN_EVENTS2 = {}));
+    var RealtimePresence2 = class _RealtimePresence {
       /**
        * Creates a Presence helper that keeps the local presence state in sync with the server.
        *
@@ -3029,7 +3039,7 @@ var require_RealtimePresence = __commonJS({
         return !this.joinRef || this.joinRef !== this.channel._joinRef();
       }
     };
-    exports2.default = RealtimePresence;
+    exports2.default = RealtimePresence2;
   }
 });
 
@@ -3046,29 +3056,29 @@ var require_RealtimeChannel = __commonJS({
     var RealtimePresence_1 = tslib_1.__importDefault(require_RealtimePresence());
     var Transformers = tslib_1.__importStar(require_transformers());
     var transformers_1 = require_transformers();
-    var REALTIME_POSTGRES_CHANGES_LISTEN_EVENT;
-    (function(REALTIME_POSTGRES_CHANGES_LISTEN_EVENT2) {
-      REALTIME_POSTGRES_CHANGES_LISTEN_EVENT2["ALL"] = "*";
-      REALTIME_POSTGRES_CHANGES_LISTEN_EVENT2["INSERT"] = "INSERT";
-      REALTIME_POSTGRES_CHANGES_LISTEN_EVENT2["UPDATE"] = "UPDATE";
-      REALTIME_POSTGRES_CHANGES_LISTEN_EVENT2["DELETE"] = "DELETE";
-    })(REALTIME_POSTGRES_CHANGES_LISTEN_EVENT || (exports2.REALTIME_POSTGRES_CHANGES_LISTEN_EVENT = REALTIME_POSTGRES_CHANGES_LISTEN_EVENT = {}));
-    var REALTIME_LISTEN_TYPES;
-    (function(REALTIME_LISTEN_TYPES2) {
-      REALTIME_LISTEN_TYPES2["BROADCAST"] = "broadcast";
-      REALTIME_LISTEN_TYPES2["PRESENCE"] = "presence";
-      REALTIME_LISTEN_TYPES2["POSTGRES_CHANGES"] = "postgres_changes";
-      REALTIME_LISTEN_TYPES2["SYSTEM"] = "system";
-    })(REALTIME_LISTEN_TYPES || (exports2.REALTIME_LISTEN_TYPES = REALTIME_LISTEN_TYPES = {}));
-    var REALTIME_SUBSCRIBE_STATES;
-    (function(REALTIME_SUBSCRIBE_STATES2) {
-      REALTIME_SUBSCRIBE_STATES2["SUBSCRIBED"] = "SUBSCRIBED";
-      REALTIME_SUBSCRIBE_STATES2["TIMED_OUT"] = "TIMED_OUT";
-      REALTIME_SUBSCRIBE_STATES2["CLOSED"] = "CLOSED";
-      REALTIME_SUBSCRIBE_STATES2["CHANNEL_ERROR"] = "CHANNEL_ERROR";
-    })(REALTIME_SUBSCRIBE_STATES || (exports2.REALTIME_SUBSCRIBE_STATES = REALTIME_SUBSCRIBE_STATES = {}));
+    var REALTIME_POSTGRES_CHANGES_LISTEN_EVENT2;
+    (function(REALTIME_POSTGRES_CHANGES_LISTEN_EVENT3) {
+      REALTIME_POSTGRES_CHANGES_LISTEN_EVENT3["ALL"] = "*";
+      REALTIME_POSTGRES_CHANGES_LISTEN_EVENT3["INSERT"] = "INSERT";
+      REALTIME_POSTGRES_CHANGES_LISTEN_EVENT3["UPDATE"] = "UPDATE";
+      REALTIME_POSTGRES_CHANGES_LISTEN_EVENT3["DELETE"] = "DELETE";
+    })(REALTIME_POSTGRES_CHANGES_LISTEN_EVENT2 || (exports2.REALTIME_POSTGRES_CHANGES_LISTEN_EVENT = REALTIME_POSTGRES_CHANGES_LISTEN_EVENT2 = {}));
+    var REALTIME_LISTEN_TYPES2;
+    (function(REALTIME_LISTEN_TYPES3) {
+      REALTIME_LISTEN_TYPES3["BROADCAST"] = "broadcast";
+      REALTIME_LISTEN_TYPES3["PRESENCE"] = "presence";
+      REALTIME_LISTEN_TYPES3["POSTGRES_CHANGES"] = "postgres_changes";
+      REALTIME_LISTEN_TYPES3["SYSTEM"] = "system";
+    })(REALTIME_LISTEN_TYPES2 || (exports2.REALTIME_LISTEN_TYPES = REALTIME_LISTEN_TYPES2 = {}));
+    var REALTIME_SUBSCRIBE_STATES2;
+    (function(REALTIME_SUBSCRIBE_STATES3) {
+      REALTIME_SUBSCRIBE_STATES3["SUBSCRIBED"] = "SUBSCRIBED";
+      REALTIME_SUBSCRIBE_STATES3["TIMED_OUT"] = "TIMED_OUT";
+      REALTIME_SUBSCRIBE_STATES3["CLOSED"] = "CLOSED";
+      REALTIME_SUBSCRIBE_STATES3["CHANNEL_ERROR"] = "CHANNEL_ERROR";
+    })(REALTIME_SUBSCRIBE_STATES2 || (exports2.REALTIME_SUBSCRIBE_STATES = REALTIME_SUBSCRIBE_STATES2 = {}));
     exports2.REALTIME_CHANNEL_STATES = constants_1.CHANNEL_STATES;
-    var RealtimeChannel = class _RealtimeChannel {
+    var RealtimeChannel2 = class _RealtimeChannel {
       /**
        * Creates a channel that can broadcast messages, sync presence, and listen to Postgres changes.
        *
@@ -3158,7 +3168,7 @@ var require_RealtimeChannel = __commonJS({
         if (this.state == constants_1.CHANNEL_STATES.closed) {
           const { config: { broadcast, presence, private: isPrivate } } = this.params;
           const postgres_changes = (_b = (_a = this.bindings.postgres_changes) === null || _a === void 0 ? void 0 : _a.map((r) => r.filter)) !== null && _b !== void 0 ? _b : [];
-          const presence_enabled = !!this.bindings[REALTIME_LISTEN_TYPES.PRESENCE] && this.bindings[REALTIME_LISTEN_TYPES.PRESENCE].length > 0 || ((_c = this.params.config.presence) === null || _c === void 0 ? void 0 : _c.enabled) === true;
+          const presence_enabled = !!this.bindings[REALTIME_LISTEN_TYPES2.PRESENCE] && this.bindings[REALTIME_LISTEN_TYPES2.PRESENCE].length > 0 || ((_c = this.params.config.presence) === null || _c === void 0 ? void 0 : _c.enabled) === true;
           const accessTokenPayload = {};
           const config = {
             broadcast,
@@ -3169,8 +3179,8 @@ var require_RealtimeChannel = __commonJS({
           if (this.socket.accessTokenValue) {
             accessTokenPayload.access_token = this.socket.accessTokenValue;
           }
-          this._onError((e) => callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, e));
-          this._onClose(() => callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.CLOSED));
+          this._onError((e) => callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES2.CHANNEL_ERROR, e));
+          this._onClose(() => callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES2.CLOSED));
           this.updateJoinPayload(Object.assign({ config }, accessTokenPayload));
           this.joinedOnce = true;
           this._rejoin(timeout);
@@ -3180,7 +3190,7 @@ var require_RealtimeChannel = __commonJS({
               this.socket.setAuth();
             }
             if (postgres_changes2 === void 0) {
-              callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
+              callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES2.SUBSCRIBED);
               return;
             } else {
               const clientPostgresBindings = this.bindings.postgres_changes;
@@ -3195,20 +3205,20 @@ var require_RealtimeChannel = __commonJS({
                 } else {
                   this.unsubscribe();
                   this.state = constants_1.CHANNEL_STATES.errored;
-                  callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, new Error("mismatch between server and client bindings for postgres changes"));
+                  callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES2.CHANNEL_ERROR, new Error("mismatch between server and client bindings for postgres changes"));
                   return;
                 }
               }
               this.bindings.postgres_changes = newPostgresBindings;
-              callback && callback(REALTIME_SUBSCRIBE_STATES.SUBSCRIBED);
+              callback && callback(REALTIME_SUBSCRIBE_STATES2.SUBSCRIBED);
               return;
             }
           }).receive("error", (error) => {
             this.state = constants_1.CHANNEL_STATES.errored;
-            callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.CHANNEL_ERROR, new Error(JSON.stringify(Object.values(error).join(", ") || "error")));
+            callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES2.CHANNEL_ERROR, new Error(JSON.stringify(Object.values(error).join(", ") || "error")));
             return;
           }).receive("timeout", () => {
-            callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES.TIMED_OUT);
+            callback === null || callback === void 0 ? void 0 : callback(REALTIME_SUBSCRIBE_STATES2.TIMED_OUT);
             return;
           });
         }
@@ -3244,7 +3254,7 @@ var require_RealtimeChannel = __commonJS({
         }, opts);
       }
       on(type, filter, callback) {
-        if (this.state === constants_1.CHANNEL_STATES.joined && type === REALTIME_LISTEN_TYPES.PRESENCE) {
+        if (this.state === constants_1.CHANNEL_STATES.joined && type === REALTIME_LISTEN_TYPES2.PRESENCE) {
           this.socket.log("channel", `resubscribe to ${this.topic} due to change in presence callbacks on joined channel`);
           this.unsubscribe().then(async () => await this.subscribe());
         }
@@ -3637,7 +3647,7 @@ var require_RealtimeChannel = __commonJS({
         return records;
       }
     };
-    exports2.default = RealtimeChannel;
+    exports2.default = RealtimeChannel2;
   }
 });
 
@@ -3668,7 +3678,7 @@ var require_RealtimeClient = __commonJS({
       setInterval(() => postMessage({ event: "keepAlive" }), e.data.interval);
     }
   });`;
-    var RealtimeClient = class {
+    var RealtimeClient2 = class {
       /**
        * Initializes the Socket.
        *
@@ -4385,7 +4395,7 @@ Option 2: Install and provide the "ws" package:
         }
       }
     };
-    exports2.default = RealtimeClient;
+    exports2.default = RealtimeClient2;
   }
 });
 
@@ -8340,15 +8350,15 @@ var require_fetch3 = __commonJS({
       return Headers;
     };
     exports2.resolveHeadersConstructor = resolveHeadersConstructor;
-    var fetchWithAuth = (supabaseKey2, getAccessToken, customFetch) => {
+    var fetchWithAuth = (supabaseKey, getAccessToken, customFetch) => {
       const fetch2 = (0, exports2.resolveFetch)(customFetch);
       const HeadersConstructor = (0, exports2.resolveHeadersConstructor)();
       return async (input, init) => {
         var _a;
-        const accessToken = (_a = await getAccessToken()) !== null && _a !== void 0 ? _a : supabaseKey2;
+        const accessToken = (_a = await getAccessToken()) !== null && _a !== void 0 ? _a : supabaseKey;
         let headers = new HeadersConstructor(init === null || init === void 0 ? void 0 : init.headers);
         if (!headers.has("apikey")) {
-          headers.set("apikey", supabaseKey2);
+          headers.set("apikey", supabaseKey);
         }
         if (!headers.has("Authorization")) {
           headers.set("Authorization", `Bearer ${accessToken}`);
@@ -8400,8 +8410,8 @@ var require_helpers3 = __commonJS({
       }
       return result;
     }
-    function validateSupabaseUrl(supabaseUrl2) {
-      const trimmedUrl = supabaseUrl2 === null || supabaseUrl2 === void 0 ? void 0 : supabaseUrl2.trim();
+    function validateSupabaseUrl(supabaseUrl) {
+      const trimmedUrl = supabaseUrl === null || supabaseUrl === void 0 ? void 0 : supabaseUrl.trim();
       if (!trimmedUrl) {
         throw new Error("supabaseUrl is required.");
       }
@@ -8464,13 +8474,13 @@ var require_errors3 = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.AuthInvalidJwtError = exports2.AuthWeakPasswordError = exports2.AuthRetryableFetchError = exports2.AuthPKCEGrantCodeExchangeError = exports2.AuthImplicitGrantRedirectError = exports2.AuthInvalidCredentialsError = exports2.AuthInvalidTokenResponseError = exports2.AuthSessionMissingError = exports2.CustomAuthError = exports2.AuthUnknownError = exports2.AuthApiError = exports2.AuthError = void 0;
-    exports2.isAuthError = isAuthError;
-    exports2.isAuthApiError = isAuthApiError;
-    exports2.isAuthSessionMissingError = isAuthSessionMissingError;
-    exports2.isAuthImplicitGrantRedirectError = isAuthImplicitGrantRedirectError;
-    exports2.isAuthRetryableFetchError = isAuthRetryableFetchError;
-    exports2.isAuthWeakPasswordError = isAuthWeakPasswordError;
-    var AuthError = class extends Error {
+    exports2.isAuthError = isAuthError2;
+    exports2.isAuthApiError = isAuthApiError2;
+    exports2.isAuthSessionMissingError = isAuthSessionMissingError2;
+    exports2.isAuthImplicitGrantRedirectError = isAuthImplicitGrantRedirectError2;
+    exports2.isAuthRetryableFetchError = isAuthRetryableFetchError2;
+    exports2.isAuthWeakPasswordError = isAuthWeakPasswordError2;
+    var AuthError2 = class extends Error {
       constructor(message, status, code) {
         super(message);
         this.__isAuthError = true;
@@ -8479,11 +8489,11 @@ var require_errors3 = __commonJS({
         this.code = code;
       }
     };
-    exports2.AuthError = AuthError;
-    function isAuthError(error) {
+    exports2.AuthError = AuthError2;
+    function isAuthError2(error) {
       return typeof error === "object" && error !== null && "__isAuthError" in error;
     }
-    var AuthApiError = class extends AuthError {
+    var AuthApiError2 = class extends AuthError2 {
       constructor(message, status, code) {
         super(message, status, code);
         this.name = "AuthApiError";
@@ -8491,48 +8501,48 @@ var require_errors3 = __commonJS({
         this.code = code;
       }
     };
-    exports2.AuthApiError = AuthApiError;
-    function isAuthApiError(error) {
-      return isAuthError(error) && error.name === "AuthApiError";
+    exports2.AuthApiError = AuthApiError2;
+    function isAuthApiError2(error) {
+      return isAuthError2(error) && error.name === "AuthApiError";
     }
-    var AuthUnknownError = class extends AuthError {
+    var AuthUnknownError2 = class extends AuthError2 {
       constructor(message, originalError) {
         super(message);
         this.name = "AuthUnknownError";
         this.originalError = originalError;
       }
     };
-    exports2.AuthUnknownError = AuthUnknownError;
-    var CustomAuthError = class extends AuthError {
+    exports2.AuthUnknownError = AuthUnknownError2;
+    var CustomAuthError2 = class extends AuthError2 {
       constructor(message, name, status, code) {
         super(message, status, code);
         this.name = name;
         this.status = status;
       }
     };
-    exports2.CustomAuthError = CustomAuthError;
-    var AuthSessionMissingError = class extends CustomAuthError {
+    exports2.CustomAuthError = CustomAuthError2;
+    var AuthSessionMissingError2 = class extends CustomAuthError2 {
       constructor() {
         super("Auth session missing!", "AuthSessionMissingError", 400, void 0);
       }
     };
-    exports2.AuthSessionMissingError = AuthSessionMissingError;
-    function isAuthSessionMissingError(error) {
-      return isAuthError(error) && error.name === "AuthSessionMissingError";
+    exports2.AuthSessionMissingError = AuthSessionMissingError2;
+    function isAuthSessionMissingError2(error) {
+      return isAuthError2(error) && error.name === "AuthSessionMissingError";
     }
-    var AuthInvalidTokenResponseError = class extends CustomAuthError {
+    var AuthInvalidTokenResponseError2 = class extends CustomAuthError2 {
       constructor() {
         super("Auth session or user missing", "AuthInvalidTokenResponseError", 500, void 0);
       }
     };
-    exports2.AuthInvalidTokenResponseError = AuthInvalidTokenResponseError;
-    var AuthInvalidCredentialsError = class extends CustomAuthError {
+    exports2.AuthInvalidTokenResponseError = AuthInvalidTokenResponseError2;
+    var AuthInvalidCredentialsError2 = class extends CustomAuthError2 {
       constructor(message) {
         super(message, "AuthInvalidCredentialsError", 400, void 0);
       }
     };
-    exports2.AuthInvalidCredentialsError = AuthInvalidCredentialsError;
-    var AuthImplicitGrantRedirectError = class extends CustomAuthError {
+    exports2.AuthInvalidCredentialsError = AuthInvalidCredentialsError2;
+    var AuthImplicitGrantRedirectError2 = class extends CustomAuthError2 {
       constructor(message, details = null) {
         super(message, "AuthImplicitGrantRedirectError", 500, void 0);
         this.details = null;
@@ -8547,11 +8557,11 @@ var require_errors3 = __commonJS({
         };
       }
     };
-    exports2.AuthImplicitGrantRedirectError = AuthImplicitGrantRedirectError;
-    function isAuthImplicitGrantRedirectError(error) {
-      return isAuthError(error) && error.name === "AuthImplicitGrantRedirectError";
+    exports2.AuthImplicitGrantRedirectError = AuthImplicitGrantRedirectError2;
+    function isAuthImplicitGrantRedirectError2(error) {
+      return isAuthError2(error) && error.name === "AuthImplicitGrantRedirectError";
     }
-    var AuthPKCEGrantCodeExchangeError = class extends CustomAuthError {
+    var AuthPKCEGrantCodeExchangeError2 = class extends CustomAuthError2 {
       constructor(message, details = null) {
         super(message, "AuthPKCEGrantCodeExchangeError", 500, void 0);
         this.details = null;
@@ -8566,32 +8576,32 @@ var require_errors3 = __commonJS({
         };
       }
     };
-    exports2.AuthPKCEGrantCodeExchangeError = AuthPKCEGrantCodeExchangeError;
-    var AuthRetryableFetchError = class extends CustomAuthError {
+    exports2.AuthPKCEGrantCodeExchangeError = AuthPKCEGrantCodeExchangeError2;
+    var AuthRetryableFetchError2 = class extends CustomAuthError2 {
       constructor(message, status) {
         super(message, "AuthRetryableFetchError", status, void 0);
       }
     };
-    exports2.AuthRetryableFetchError = AuthRetryableFetchError;
-    function isAuthRetryableFetchError(error) {
-      return isAuthError(error) && error.name === "AuthRetryableFetchError";
+    exports2.AuthRetryableFetchError = AuthRetryableFetchError2;
+    function isAuthRetryableFetchError2(error) {
+      return isAuthError2(error) && error.name === "AuthRetryableFetchError";
     }
-    var AuthWeakPasswordError = class extends CustomAuthError {
+    var AuthWeakPasswordError2 = class extends CustomAuthError2 {
       constructor(message, status, reasons) {
         super(message, "AuthWeakPasswordError", status, "weak_password");
         this.reasons = reasons;
       }
     };
-    exports2.AuthWeakPasswordError = AuthWeakPasswordError;
-    function isAuthWeakPasswordError(error) {
-      return isAuthError(error) && error.name === "AuthWeakPasswordError";
+    exports2.AuthWeakPasswordError = AuthWeakPasswordError2;
+    function isAuthWeakPasswordError2(error) {
+      return isAuthError2(error) && error.name === "AuthWeakPasswordError";
     }
-    var AuthInvalidJwtError = class extends CustomAuthError {
+    var AuthInvalidJwtError2 = class extends CustomAuthError2 {
       constructor(message) {
         super(message, "AuthInvalidJwtError", 400, "invalid_jwt");
       }
     };
-    exports2.AuthInvalidJwtError = AuthInvalidJwtError;
+    exports2.AuthInvalidJwtError = AuthInvalidJwtError2;
   }
 });
 
@@ -9276,7 +9286,7 @@ var require_GoTrueAdminApi = __commonJS({
     var helpers_1 = require_helpers4();
     var types_1 = require_types3();
     var errors_1 = require_errors3();
-    var GoTrueAdminApi = class {
+    var GoTrueAdminApi2 = class {
       /**
        * Creates an admin API client that can be used to manage users and OAuth clients.
        *
@@ -9691,7 +9701,7 @@ var require_GoTrueAdminApi = __commonJS({
         }
       }
     };
-    exports2.default = GoTrueAdminApi;
+    exports2.default = GoTrueAdminApi2;
   }
 });
 
@@ -9723,8 +9733,8 @@ var require_locks = __commonJS({
     "use strict";
     Object.defineProperty(exports2, "__esModule", { value: true });
     exports2.ProcessLockAcquireTimeoutError = exports2.NavigatorLockAcquireTimeoutError = exports2.LockAcquireTimeoutError = exports2.internals = void 0;
-    exports2.navigatorLock = navigatorLock;
-    exports2.processLock = processLock;
+    exports2.navigatorLock = navigatorLock2;
+    exports2.processLock = processLock2;
     var helpers_1 = require_helpers4();
     exports2.internals = {
       /**
@@ -9739,13 +9749,13 @@ var require_locks = __commonJS({
       }
     };
     exports2.LockAcquireTimeoutError = LockAcquireTimeoutError;
-    var NavigatorLockAcquireTimeoutError = class extends LockAcquireTimeoutError {
+    var NavigatorLockAcquireTimeoutError2 = class extends LockAcquireTimeoutError {
     };
-    exports2.NavigatorLockAcquireTimeoutError = NavigatorLockAcquireTimeoutError;
+    exports2.NavigatorLockAcquireTimeoutError = NavigatorLockAcquireTimeoutError2;
     var ProcessLockAcquireTimeoutError = class extends LockAcquireTimeoutError {
     };
     exports2.ProcessLockAcquireTimeoutError = ProcessLockAcquireTimeoutError;
-    async function navigatorLock(name, acquireTimeout, fn) {
+    async function navigatorLock2(name, acquireTimeout, fn) {
       if (exports2.internals.debug) {
         console.log("@supabase/gotrue-js: navigatorLock: acquire lock", name, acquireTimeout);
       }
@@ -9781,7 +9791,7 @@ var require_locks = __commonJS({
             if (exports2.internals.debug) {
               console.log("@supabase/gotrue-js: navigatorLock: not immediately available", name);
             }
-            throw new NavigatorLockAcquireTimeoutError(`Acquiring an exclusive Navigator LockManager lock "${name}" immediately failed`);
+            throw new NavigatorLockAcquireTimeoutError2(`Acquiring an exclusive Navigator LockManager lock "${name}" immediately failed`);
           } else {
             if (exports2.internals.debug) {
               try {
@@ -9798,7 +9808,7 @@ var require_locks = __commonJS({
       }));
     }
     var PROCESS_LOCKS = {};
-    async function processLock(name, acquireTimeout, fn) {
+    async function processLock2(name, acquireTimeout, fn) {
       var _a;
       const previousOperation = (_a = PROCESS_LOCKS[name]) !== null && _a !== void 0 ? _a : Promise.resolve();
       const currentOperation = Promise.race([
@@ -10703,7 +10713,7 @@ var require_GoTrueClient = __commonJS({
       return await fn();
     }
     var GLOBAL_JWKS = {};
-    var GoTrueClient = class _GoTrueClient {
+    var GoTrueClient2 = class _GoTrueClient {
       /**
        * The JWKS used for verifying asymmetric JWTs
        */
@@ -13173,8 +13183,8 @@ var require_GoTrueClient = __commonJS({
         }
       }
     };
-    GoTrueClient.nextInstanceID = {};
-    exports2.default = GoTrueClient;
+    GoTrueClient2.nextInstanceID = {};
+    exports2.default = GoTrueClient2;
   }
 });
 
@@ -13185,8 +13195,8 @@ var require_AuthAdminApi = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
     var GoTrueAdminApi_1 = tslib_1.__importDefault(require_GoTrueAdminApi());
-    var AuthAdminApi = GoTrueAdminApi_1.default;
-    exports2.default = AuthAdminApi;
+    var AuthAdminApi2 = GoTrueAdminApi_1.default;
+    exports2.default = AuthAdminApi2;
   }
 });
 
@@ -13197,8 +13207,8 @@ var require_AuthClient = __commonJS({
     Object.defineProperty(exports2, "__esModule", { value: true });
     var tslib_1 = (init_tslib_es6(), __toCommonJS(tslib_es6_exports));
     var GoTrueClient_1 = tslib_1.__importDefault(require_GoTrueClient());
-    var AuthClient = GoTrueClient_1.default;
-    exports2.default = AuthClient;
+    var AuthClient2 = GoTrueClient_1.default;
+    exports2.default = AuthClient2;
   }
 });
 
@@ -13264,7 +13274,7 @@ var require_SupabaseClient = __commonJS({
     var fetch_1 = require_fetch3();
     var helpers_1 = require_helpers3();
     var SupabaseAuthClient_1 = require_SupabaseAuthClient();
-    var SupabaseClient = class {
+    var SupabaseClient2 = class {
       /**
        * Create a new client for use in the browser.
        * @param supabaseUrl The unique Supabase URL which is supplied when you create a new project in your project dashboard.
@@ -13285,12 +13295,12 @@ var require_SupabaseClient = __commonJS({
        * const { data } = await supabase.from('profiles').select('*')
        * ```
        */
-      constructor(supabaseUrl2, supabaseKey2, options) {
+      constructor(supabaseUrl, supabaseKey, options) {
         var _a, _b, _c;
-        this.supabaseUrl = supabaseUrl2;
-        this.supabaseKey = supabaseKey2;
-        const baseUrl = (0, helpers_1.validateSupabaseUrl)(supabaseUrl2);
-        if (!supabaseKey2)
+        this.supabaseUrl = supabaseUrl;
+        this.supabaseKey = supabaseKey;
+        const baseUrl = (0, helpers_1.validateSupabaseUrl)(supabaseUrl);
+        if (!supabaseKey)
           throw new Error("supabaseKey is required.");
         this.realtimeUrl = new URL("realtime/v1", baseUrl);
         this.realtimeUrl.protocol = this.realtimeUrl.protocol.replace("http", "ws");
@@ -13317,7 +13327,7 @@ var require_SupabaseClient = __commonJS({
             }
           });
         }
-        this.fetch = (0, fetch_1.fetchWithAuth)(supabaseKey2, this._getAccessToken.bind(this), settings.global.fetch);
+        this.fetch = (0, fetch_1.fetchWithAuth)(supabaseKey, this._getAccessToken.bind(this), settings.global.fetch);
         this.realtime = this._initRealtimeClient(Object.assign({ headers: this.headers, accessToken: this._getAccessToken.bind(this) }, settings.realtime));
         if (this.accessToken) {
           this.accessToken().then((token) => this.realtime.setAuth(token)).catch((e) => console.warn("Failed to set initial Realtime auth token:", e));
@@ -13475,7 +13485,7 @@ var require_SupabaseClient = __commonJS({
         }
       }
     };
-    exports2.default = SupabaseClient;
+    exports2.default = SupabaseClient2;
   }
 });
 
@@ -13531,8 +13541,8 @@ var require_main5 = __commonJS({
     Object.defineProperty(exports2, "SupabaseClient", { enumerable: true, get: function() {
       return __importDefault2(SupabaseClient_2).default;
     } });
-    var createClient2 = (supabaseUrl2, supabaseKey2, options) => {
-      return new SupabaseClient_1.default(supabaseUrl2, supabaseKey2, options);
+    var createClient2 = (supabaseUrl, supabaseKey, options) => {
+      return new SupabaseClient_1.default(supabaseUrl, supabaseKey, options);
     };
     exports2.createClient = createClient2;
     function shouldShowDeprecationWarning() {
@@ -13560,40 +13570,116 @@ var require_main5 = __commonJS({
 });
 
 // netlify/functions/sync-leiras.ts
-var { createClient } = require_main5();
-var supabaseUrl = "https://xpcxuonqffewtsmwlato.supabase.co";
-var supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE";
-var supabase = createClient(supabaseUrl, supabaseKey);
-async function diagnostico() {
-  console.log("\u{1F575}\uFE0F TESTANDO TABELA DE LEIRAS (NOMES ANTIGOS)...");
-  const ID_TESTE = "116609f9-53c2-4289-9a63-0174fad8148e";
-  const payload = {
-    id: `teste-${Date.now()}`,
-    usuario_id: ID_TESTE,
-    // NOMES DO CÓDIGO ANTIGO
-    numeroleira: 888,
-    lote: "TESTE-DEBUG",
-    dataformacao: "24/12/2025",
-    // Formato BR que seu código antigo usava
-    status: "formada",
-    baga\u00E7o: 10,
-    totalbioss\u00F3lido: 50,
-    // Com acento
-    // NOVA COLUNA
-    tipo_formacao: "PISCINAO"
+var sync_leiras_exports = {};
+__export(sync_leiras_exports, {
+  handler: () => handler
+});
+module.exports = __toCommonJS(sync_leiras_exports);
+
+// node_modules/@supabase/supabase-js/dist/esm/wrapper.mjs
+var index = __toESM(require_main5(), 1);
+var {
+  PostgrestError,
+  FunctionsHttpError,
+  FunctionsFetchError,
+  FunctionsRelayError,
+  FunctionsError,
+  FunctionRegion,
+  SupabaseClient,
+  createClient,
+  GoTrueAdminApi,
+  GoTrueClient,
+  AuthAdminApi,
+  AuthClient,
+  navigatorLock,
+  NavigatorLockAcquireTimeoutError,
+  lockInternals,
+  processLock,
+  SIGN_OUT_SCOPES,
+  AuthError,
+  AuthApiError,
+  AuthUnknownError,
+  CustomAuthError,
+  AuthSessionMissingError,
+  AuthInvalidTokenResponseError,
+  AuthInvalidCredentialsError,
+  AuthImplicitGrantRedirectError,
+  AuthPKCEGrantCodeExchangeError,
+  AuthRetryableFetchError,
+  AuthWeakPasswordError,
+  AuthInvalidJwtError,
+  isAuthError,
+  isAuthApiError,
+  isAuthSessionMissingError,
+  isAuthImplicitGrantRedirectError,
+  isAuthRetryableFetchError,
+  isAuthWeakPasswordError,
+  RealtimePresence,
+  RealtimeChannel,
+  RealtimeClient,
+  REALTIME_LISTEN_TYPES,
+  REALTIME_POSTGRES_CHANGES_LISTEN_EVENT,
+  REALTIME_PRESENCE_LISTEN_EVENTS,
+  REALTIME_SUBSCRIBE_STATES,
+  REALTIME_CHANNEL_STATES
+} = index.default || index;
+
+// netlify/functions/sync-leiras.ts
+var supabase = createClient(
+  process.env.SUPABASE_URL || "https://xpcxuonqffewtsmwlato.supabase.co",
+  process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
+);
+var USUARIO_ID = "116609f9-53c2-4289-9a63-0174fad8148e";
+var handler = async (event) => {
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
   };
-  console.log("\u{1F4E4} Tentando inserir:", payload);
-  const { data, error } = await supabase.from("leiras_formadas").insert(payload).select();
-  if (error) {
-    console.log("\n\u274C ERRO ENCONTRADO:");
-    console.log(`Mensagem: ${error.message}`);
-    console.log(`C\xF3digo: ${error.code}`);
-    console.log(`Detalhes: ${error.details || "Sem detalhes"}`);
-    console.log(`Hint: ${error.hint || "Sem dica"}`);
-  } else {
-    console.log("\n\u2705 SUCESSO! O banco aceitou.");
-    await supabase.from("leiras_formadas").delete().eq("id", payload.id);
+  if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers, body: "" };
+  try {
+    const body = JSON.parse(event.body || "{}");
+    const leiras = body.leiras || [];
+    if (leiras.length === 0) return { statusCode: 200, headers, body: JSON.stringify({ message: "Vazio" }) };
+    const agora = (/* @__PURE__ */ new Date()).toISOString();
+    const erros = [];
+    for (const leira of leiras) {
+      let origemLeira = "MTR";
+      if (leira.tipoFormacao === "MANUAL") origemLeira = "PISCINAO";
+      const payload = {
+        id: leira.id,
+        usuario_id: USUARIO_ID,
+        // Agora vai aceitar mesmo se não existir na tabela usuarios
+        numeroleira: leira.numeroLeira,
+        lote: leira.lote,
+        dataformacao: leira.dataFormacao,
+        // Manda como string mesmo (DD/MM/YYYY)
+        status: leira.status,
+        baga\u00E7o: leira.baga\u00E7o || 12,
+        totalbioss\u00F3lido: leira.totalBioss\u00F3lido || 0,
+        // Com acento, igual ao banco
+        tipo_formacao: origemLeira,
+        sincronizado: true,
+        sincronizado_em: agora,
+        criado_em: agora,
+        atualizado_em: agora
+      };
+      const { error } = await supabase.from("leiras_formadas").upsert(payload, { onConflict: "id" });
+      if (error) {
+        console.error(`\u274C Erro Leira ${leira.numeroLeira}:`, error.message);
+        erros.push(error.message);
+      }
+    }
+    if (erros.length > 0) {
+      return { statusCode: 500, headers, body: JSON.stringify({ sucesso: false, erro: erros[0] }) };
+    }
+    return { statusCode: 200, headers, body: JSON.stringify({ sucesso: true }) };
+  } catch (error) {
+    return { statusCode: 500, headers, body: JSON.stringify({ erro: error.message }) };
   }
-}
-diagnostico();
+};
+// Annotate the CommonJS export names for ESM import in node:
+0 && (module.exports = {
+  handler
+});
 //# sourceMappingURL=sync-leiras.js.map
