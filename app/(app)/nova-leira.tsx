@@ -40,6 +40,7 @@ interface BiossólidoEntry {
   numeroMTR: string;
   peso: string;
   origem: string;
+  destino?: string;
   tipoMaterial: string;
 }
 
@@ -138,10 +139,25 @@ export default function NovaLeiraScreen() {
       const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
       const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
       
-      const biossólidosCarregados = materiais.filter((item: any) => 
-        item.tipoMaterial === 'Biossólido' || 
-        (item.origem && item.origem.toLowerCase().includes('piscin'))
-      );
+      // 🔥 FILTRO DEFINITIVO
+      const biossólidosCarregados = materiais.filter((item: any) => {
+        const tipo = item.tipoMaterial ? item.tipoMaterial.toLowerCase() : '';
+        const origem = item.origem ? item.origem.toLowerCase() : '';
+        const destino = item.destino ? item.destino.toLowerCase() : '';
+        const mtr = item.numeroMTR ? item.numeroMTR.toLowerCase() : '';
+
+        const ehBiossolido = tipo.includes('bio') || tipo.includes('lodo');
+
+        const ehPiscinao = 
+            destino.includes('piscin') || 
+            destino.includes('estoque') ||
+            origem.includes('piscin') || 
+            origem.includes('manual') || 
+            tipo.includes('piscin') ||
+            mtr.includes('manual');
+        
+        return ehBiossolido && !ehPiscinao;
+      });
       
       setBiossólidos(biossólidosCarregados);
 
@@ -255,43 +271,60 @@ export default function NovaLeiraScreen() {
     }
   };
 
+  // 🔥 NOVA LÓGICA DE EXCLUSÃO COM PERGUNTA AO USUÁRIO
   const handleExcluirLeira = (leira: Leira) => {
     Alert.alert(
       'Excluir Leira',
-      `Tem certeza que deseja excluir a Leira #${leira.numeroLeira}?`,
+      `O que deseja fazer com os biossólidos da Leira #${leira.numeroLeira}?`,
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Excluir',
+          text: 'Excluir Definitivamente', // OPÇÃO 1: Apaga tudo
           style: 'destructive',
           onPress: async () => {
-            try {
-              const novasLeiras = leiras.filter(l => l.id !== leira.id);
-              await AsyncStorage.setItem('leirasFormadas', JSON.stringify(novasLeiras));
-              setLeiras(novasLeiras);
-
-              if (leira.tipoFormacao !== 'MANUAL') {
-                const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
-                const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
-                const novosMateriais = [...materiais, ...leira.biossólidos];
-                await AsyncStorage.setItem('materiaisRegistrados', JSON.stringify(novosMateriais));
-                
-                const biosAtualizados = novosMateriais.filter((item: any) => 
-                  item.tipoMaterial === 'Biossólido' || 
-                  (item.origem && item.origem.toLowerCase().includes('piscin'))
-                );
-                setBiossólidos(biosAtualizados);
-              }
-
-              await syncService.adicionarFila('leira_deletada' as any, { id: leira.id });
-              Alert.alert('Excluída', 'Leira removida.');
-            } catch (error) {
-              Alert.alert('Erro', 'Falha ao excluir leira.');
-            }
+            await executarExclusao(leira, false);
+          }
+        },
+        {
+          text: 'Retornar ao Estoque', // OPÇÃO 2: Devolve para a lista
+          onPress: async () => {
+            await executarExclusao(leira, true);
           }
         }
       ]
     );
+  };
+
+  const executarExclusao = async (leira: Leira, devolverAoEstoque: boolean) => {
+    try {
+      // 1. Remove a Leira da lista
+      const novasLeiras = leiras.filter(l => l.id !== leira.id);
+      await AsyncStorage.setItem('leirasFormadas', JSON.stringify(novasLeiras));
+      setLeiras(novasLeiras);
+
+      // 2. Se for para devolver ao estoque (e não for manual)
+      if (devolverAoEstoque && leira.tipoFormacao !== 'MANUAL') {
+        const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
+        const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
+        
+        // Adiciona de volta os materiais da leira
+        const novosMateriais = [...materiais, ...leira.biossólidos];
+        await AsyncStorage.setItem('materiaisRegistrados', JSON.stringify(novosMateriais));
+        
+        // Recarrega a lista para mostrar os itens devolvidos
+        loadData();
+        Alert.alert('Sucesso', 'Leira excluída e materiais devolvidos ao estoque.');
+      } else {
+        // Se for exclusão definitiva
+        Alert.alert('Sucesso', 'Leira e materiais excluídos definitivamente.');
+      }
+
+      // 3. Sincroniza a deleção da leira
+      await syncService.adicionarFila('leira_deletada' as any, { id: leira.id });
+
+    } catch (error) {
+      Alert.alert('Erro', 'Falha ao excluir leira.');
+    }
   };
 
   const totalBioSelecionado = modoManual 
@@ -316,7 +349,7 @@ export default function NovaLeiraScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backIcon}>←</Text>
+            <Text style={styles.backIcon}></Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Formação de Leira</Text>
           <View style={styles.backButton} />
@@ -511,7 +544,6 @@ function LeiraCard({ leira, onDelete }: { leira: Leira, onDelete: () => void }) 
           <Text style={styles.leiraStatusText}>{getStatusLabel(leira.status)}</Text>
       </View>
 
-      {/* ✅ LINHA DO TEMPO RESTAURADA */}
       <View style={styles.timeline}>
         <TimelineStep label="Formação" status="completed" dias={diasPassados} />
         <TimelineStep label="Secagem" status={diasPassados > 2 ? 'completed' : 'pending'} dias={3} />
@@ -529,7 +561,6 @@ function LeiraCard({ leira, onDelete }: { leira: Leira, onDelete: () => void }) 
   );
 }
 
-// ✅ COMPONENTE TIMELINE RESTAURADO
 function TimelineStep({ label, status, dias }: { label: string; status: 'pending' | 'active' | 'completed'; dias?: number }) {
   const getColor = () => {
     switch (status) {
@@ -643,7 +674,6 @@ const styles = StyleSheet.create({
   detailValue: { fontSize: 13, fontWeight: '700', color: PALETTE.preto },
   iconButton: { padding: 8, borderRadius: 8, backgroundColor: PALETTE.cinzaClaro2, alignItems: 'center', justifyContent: 'center', minWidth: 40, minHeight: 40 },
   
-  // ESTILOS DA TIMELINE (RESTAURADOS)
   timeline: { marginBottom: 14, paddingVertical: 10, borderLeftWidth: 2, borderLeftColor: PALETTE.cinzaClaro2, paddingLeft: 12 },
   timelineStep: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
   timelineIcon: { width: 20, height: 20, borderRadius: 10, justifyContent: 'center', alignItems: 'center', marginLeft: -17 },

@@ -13629,101 +13629,79 @@ var supabase = createClient(
   process.env.SUPABASE_URL || "https://xpcxuonqffewtsmwlato.supabase.co",
   process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
 );
-var USUARIO_ID = "116609f9-53c2-4289-9a63-0174fad8148e";
+function converterData(dataBR) {
+  if (!dataBR) return null;
+  if (dataBR.includes("-")) return dataBR;
+  const partes = dataBR.split("/");
+  if (partes.length !== 3) return null;
+  return `${partes[2]}-${partes[1]}-${partes[0]}`;
+}
 var handler = async (event) => {
-  console.log("\u{1F504} Fun\xE7\xE3o sync-leiras acionada");
-  console.log("\u{1F50D} DEBUG - body recebido:", JSON.stringify(event.body));
-  if (event.httpMethod !== "POST") {
-    return {
-      statusCode: 405,
-      body: JSON.stringify({ error: "M\xE9todo n\xE3o permitido" })
-    };
-  }
+  const headers = {
+    "Access-Control-Allow-Origin": "*",
+    "Access-Control-Allow-Headers": "Content-Type",
+    "Access-Control-Allow-Methods": "POST, OPTIONS"
+  };
+  if (event.httpMethod === "OPTIONS") return { statusCode: 200, headers, body: "" };
   try {
     const body = JSON.parse(event.body || "{}");
     const leiras = body.leiras || [];
-    const operadorNome = body.operadorNome || "Desconhecido";
-    console.log(`\u{1F4E4} Recebido: ${leiras.length} leiras do operador ${operadorNome}`);
-    console.log(`\u{1F50D} DEBUG - Usando usuarioId: ${USUARIO_ID}`);
-    if (leiras.length === 0) {
-      return {
-        statusCode: 200,
-        body: JSON.stringify({
-          sucesso: true,
-          sincronizados: 0,
-          detalhes: []
-        })
-      };
+    let operadorId = body.operadorId;
+    if (!operadorId || operadorId.length < 30) {
+      operadorId = "116609f9-53c2-4289-9a63-0174fad8148e";
     }
-    const resultados = [];
-    let sincronizados = 0;
+    console.log(`\u{1F4E5} Recebendo ${leiras.length} leiras...`);
+    if (leiras.length === 0) {
+      return { statusCode: 200, headers, body: JSON.stringify({ message: "Vazio" }) };
+    }
     const agora = (/* @__PURE__ */ new Date()).toISOString();
+    const erros = [];
     for (const leira of leiras) {
-      try {
-        console.log(`\u{1F4AA} Processando leira: ${leira.id}`);
-        const { data, error } = await supabase.from("leiras_formadas").upsert({
-          id: leira.id,
-          usuario_id: USUARIO_ID,
-          numeroleira: leira.numeroLeira,
-          lote: leira.lote,
-          dataformacao: leira.dataFormacao,
-          status: leira.status,
-          totalbioss\u00F3lido: leira.totalBioss\u00F3lido,
-          baga\u00E7o: leira.baga\u00E7o,
-          sincronizado: true,
-          sincronizado_em: agora,
-          criado_em: agora,
-          atualizado_em: agora
-        }, {
-          onConflict: "id"
-          // ✅ SE EXISTIR ID, FAZ UPDATE
-        });
-        if (error) {
-          console.error(`\u274C Erro ao sincronizar leira:`, error.message);
-          resultados.push({
-            id: leira.id,
-            numeroLeira: leira.numeroLeira,
-            status: "erro",
-            erro: error.message
-          });
-        } else {
-          console.log(`\u2705 Leira sincronizada com sucesso`);
-          sincronizados++;
-          resultados.push({
-            id: leira.id,
-            numeroLeira: leira.numeroLeira,
-            status: "sincronizada"
-          });
-        }
-      } catch (err) {
-        console.error(`\u274C Erro ao processar leira:`, err);
-        resultados.push({
-          id: leira.id,
-          numeroLeira: leira.numeroLeira,
-          status: "erro",
-          erro: String(err)
-        });
+      const dataFormatada = converterData(leira.dataFormacao);
+      let origemLeira = "MTR";
+      if (leira.tipoFormacao === "MANUAL") {
+        origemLeira = "PISCINAO";
+      }
+      const payload = {
+        id: leira.id,
+        usuario_id: operadorId,
+        numero_leira: leira.numeroLeira,
+        lote: leira.lote,
+        data_formacao: dataFormatada,
+        status: leira.status,
+        bagaco_ton: leira.baga\u00E7o || 0,
+        total_biossolido: leira.totalBioss\u00F3lido || 0,
+        // ✅ NOVA COLUNA
+        tipo_formacao: origemLeira,
+        sincronizado: true,
+        sincronizado_em: agora,
+        criado_em: agora,
+        atualizado_em: agora
+      };
+      const { error } = await supabase.from("leiras_formadas").upsert(payload, { onConflict: "id" });
+      if (error) {
+        console.error(`\u274C Erro Leira ${leira.numeroLeira}:`, error.message);
+        erros.push(error.message);
       }
     }
-    console.log(`\u2705 Sincroniza\xE7\xE3o conclu\xEDda: ${sincronizados}/${leiras.length} sincronizadas`);
+    if (erros.length > 0) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ sucesso: false, erro: erros[0] })
+      };
+    }
     return {
       statusCode: 200,
-      body: JSON.stringify({
-        sucesso: true,
-        sincronizados,
-        erros: resultados.filter((r) => r.status === "erro").length,
-        detalhes: resultados
-      })
+      headers,
+      body: JSON.stringify({ sucesso: true })
     };
   } catch (error) {
-    console.error("\u274C Erro geral na sincroniza\xE7\xE3o:", error);
+    console.error("\u274C Erro Cr\xEDtico:", error);
     return {
       statusCode: 500,
-      body: JSON.stringify({
-        sucesso: false,
-        erro: "Erro ao sincronizar dados",
-        detalhes: String(error)
-      })
+      headers,
+      body: JSON.stringify({ erro: error.message })
     };
   }
 };
