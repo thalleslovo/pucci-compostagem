@@ -126,6 +126,8 @@ export default function NovaLeiraScreen() {
   const [modoManual, setModoManual] = useState(false);
   const [pesoManualBio, setPesoManualBio] = useState('');
   const [pesoManualBagaco, setPesoManualBagaco] = useState('12');
+  // 🔥 NOVO CAMPO: DATA MANUAL (Inicia com hoje)
+  const [dataManual, setDataManual] = useState(new Date().toLocaleDateString('pt-BR'));
 
   useFocusEffect(
     React.useCallback(() => {
@@ -139,7 +141,6 @@ export default function NovaLeiraScreen() {
       const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
       const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
       
-      // 🔥 FILTRO DEFINITIVO
       const biossólidosCarregados = materiais.filter((item: any) => {
         const tipo = item.tipoMaterial ? item.tipoMaterial.toLowerCase() : '';
         const origem = item.origem ? item.origem.toLowerCase() : '';
@@ -198,10 +199,14 @@ export default function NovaLeiraScreen() {
         Alert.alert('Atenção', 'Informe o peso do Bagaço.');
         return;
       }
+      if (!dataManual.trim()) {
+        Alert.alert('Atenção', 'Informe a data de formação.');
+        return;
+      }
 
       const itemManual: BiossólidoEntry = {
         id: `manual-${Date.now()}`,
-        data: new Date().toLocaleDateString('pt-BR'),
+        data: dataManual, // Usa a data digitada
         numeroMTR: 'MANUAL',
         peso: pesoBio.toString(),
         origem: 'Piscinão/Manual',
@@ -212,7 +217,7 @@ export default function NovaLeiraScreen() {
         id: Date.now().toString(),
         numeroLeira: leiras.length + 1,
         lote: calcularLote([]),
-        dataFormacao: new Date().toLocaleDateString('pt-BR'),
+        dataFormacao: dataManual, // Usa a data digitada
         biossólidos: [itemManual],
         bagaço: pesoBagaco,
         status: 'formada',
@@ -263,6 +268,8 @@ export default function NovaLeiraScreen() {
       setSelectedBiossólidos([]);
       setPesoManualBio('');
       setPesoManualBagaco('12');
+      // Reseta a data para hoje
+      setDataManual(new Date().toLocaleDateString('pt-BR'));
       setShowForm(false);
 
       Alert.alert('Sucesso! ✅', `Leira #${novaLeira.numeroLeira} formada com sucesso!`);
@@ -271,7 +278,6 @@ export default function NovaLeiraScreen() {
     }
   };
 
-  // 🔥 NOVA LÓGICA DE EXCLUSÃO COM PERGUNTA AO USUÁRIO
   const handleExcluirLeira = (leira: Leira) => {
     Alert.alert(
       'Excluir Leira',
@@ -279,14 +285,14 @@ export default function NovaLeiraScreen() {
       [
         { text: 'Cancelar', style: 'cancel' },
         {
-          text: 'Excluir Definitivamente', // OPÇÃO 1: Apaga tudo
+          text: 'Excluir Definitivamente',
           style: 'destructive',
           onPress: async () => {
             await executarExclusao(leira, false);
           }
         },
         {
-          text: 'Retornar ao Estoque', // OPÇÃO 2: Devolve para a lista
+          text: 'Retornar ao Estoque',
           onPress: async () => {
             await executarExclusao(leira, true);
           }
@@ -297,29 +303,21 @@ export default function NovaLeiraScreen() {
 
   const executarExclusao = async (leira: Leira, devolverAoEstoque: boolean) => {
     try {
-      // 1. Remove a Leira da lista
       const novasLeiras = leiras.filter(l => l.id !== leira.id);
       await AsyncStorage.setItem('leirasFormadas', JSON.stringify(novasLeiras));
       setLeiras(novasLeiras);
 
-      // 2. Se for para devolver ao estoque (e não for manual)
       if (devolverAoEstoque && leira.tipoFormacao !== 'MANUAL') {
         const materiaisRegistrados = await AsyncStorage.getItem('materiaisRegistrados');
         const materiais = materiaisRegistrados ? JSON.parse(materiaisRegistrados) : [];
-        
-        // Adiciona de volta os materiais da leira
         const novosMateriais = [...materiais, ...leira.biossólidos];
         await AsyncStorage.setItem('materiaisRegistrados', JSON.stringify(novosMateriais));
-        
-        // Recarrega a lista para mostrar os itens devolvidos
         loadData();
         Alert.alert('Sucesso', 'Leira excluída e materiais devolvidos ao estoque.');
       } else {
-        // Se for exclusão definitiva
         Alert.alert('Sucesso', 'Leira e materiais excluídos definitivamente.');
       }
 
-      // 3. Sincroniza a deleção da leira
       await syncService.adicionarFila('leira_deletada' as any, { id: leira.id });
 
     } catch (error) {
@@ -349,7 +347,7 @@ export default function NovaLeiraScreen() {
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
           <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-            <Text style={styles.backIcon}></Text>
+            <Text style={styles.backIcon}>←</Text>
           </TouchableOpacity>
           <Text style={styles.headerTitle}>Formação de Leira</Text>
           <View style={styles.backButton} />
@@ -389,6 +387,19 @@ export default function NovaLeiraScreen() {
 
             {modoManual ? (
               <View style={styles.manualInputContainer}>
+                {/* 🔥 NOVO CAMPO DE DATA */}
+                <Text style={styles.inputLabel}>Data de Formação</Text>
+                <View style={styles.inputWrapper}>
+                  <TextInput
+                    style={styles.input}
+                    value={dataManual}
+                    onChangeText={setDataManual}
+                    placeholder="DD/MM/AAAA"
+                    keyboardType="numbers-and-punctuation"
+                  />
+                  <Text style={styles.unitText}>📅</Text>
+                </View>
+
                 <Text style={styles.inputLabel}>Peso do Material (Piscinão/Bio)</Text>
                 <View style={styles.inputWrapper}>
                   <TextInput
@@ -519,8 +530,9 @@ function LeiraCard({ leira, onDelete }: { leira: Leira, onDelete: () => void }) 
           <View style={styles.leiraNumberRow}>
             <Text style={styles.leiraNumber}>Leira #{leira.numeroLeira}</Text>
             {leira.tipoFormacao === 'MANUAL' ? (
+              // 🔥 ALTERADO: AGORA MOSTRA "PISCINÃO" EM VEZ DE "MANUAL"
               <View style={[styles.loteBadge, { backgroundColor: PALETTE.azulPiscinao }]}>
-                <Text style={styles.loteBadgeText}>MANUAL</Text>
+                <Text style={styles.loteBadgeText}>PISCINÃO</Text>
               </View>
             ) : (
               <View style={[styles.loteBadge, { backgroundColor: PALETTE.terracota }]}>
