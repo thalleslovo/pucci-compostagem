@@ -13630,18 +13630,28 @@ var supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
 );
 var USUARIO_ID = "116609f9-53c2-4289-9a63-0174fad8148e";
+function safeParseFloat(valor) {
+  if (valor === null || valor === void 0 || valor === "") return null;
+  if (typeof valor === "number") return valor;
+  if (typeof valor === "string") {
+    const valorLimpo = valor.replace(",", ".").trim();
+    const numero = parseFloat(valorLimpo);
+    return isNaN(numero) ? null : numero;
+  }
+  return null;
+}
 function extrairTemperaturas(temperaturas) {
   let topo = null;
   let meio = null;
   let fundo = null;
   if (temperaturas && temperaturas.length > 0) {
     for (const pontoTemp of temperaturas) {
-      if (pontoTemp.ponto === "topo") topo = pontoTemp.temperatura;
-      if (pontoTemp.ponto === "meio") meio = pontoTemp.temperatura;
-      if (pontoTemp.ponto === "fundo") fundo = pontoTemp.temperatura;
+      if (pontoTemp.ponto === "topo") topo = safeParseFloat(pontoTemp.temperatura);
+      if (pontoTemp.ponto === "meio") meio = safeParseFloat(pontoTemp.temperatura);
+      if (pontoTemp.ponto === "fundo") fundo = safeParseFloat(pontoTemp.temperatura);
     }
   }
-  console.log(`\u{1F321}\uFE0F Temperaturas extra\xEDdas - Topo: ${topo}, Meio: ${meio}, Fundo: ${fundo}`);
+  console.log(`\u{1F321}\uFE0F Temperaturas processadas - Topo: ${topo}, Meio: ${meio}, Fundo: ${fundo}`);
   return { topo, meio, fundo };
 }
 var handler = async (event) => {
@@ -13653,45 +13663,32 @@ var handler = async (event) => {
   if (event.httpMethod === "OPTIONS") {
     return { statusCode: 200, headers, body: "" };
   }
-  console.log("\u{1F504} Fun\xE7\xE3o sync-monitoramento acionada");
   if (event.httpMethod !== "POST") {
     return {
       statusCode: 405,
       headers,
-      // <--- Importante devolver headers no erro também
       body: JSON.stringify({ error: "M\xE9todo n\xE3o permitido" })
     };
   }
   try {
     const body = JSON.parse(event.body || "{}");
     const monitoramentos = body.monitoramentos || [];
-    const operadorNome = body.operadorNome || "Desconhecido";
-    console.log(`\u{1F4E4} Recebido: ${monitoramentos.length} monitoramentos do operador ${operadorNome}`);
     if (monitoramentos.length === 0) {
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          sucesso: true,
-          sincronizados: 0,
-          detalhes: []
-        })
-      };
+      return { statusCode: 200, headers, body: JSON.stringify({ sucesso: true, sincronizados: 0 }) };
     }
     const resultados = [];
     let sincronizados = 0;
     const agora = (/* @__PURE__ */ new Date()).toISOString();
     for (const monitoramento of monitoramentos) {
       try {
-        console.log(`\u{1F4AA} Processando monitoramento: ${monitoramento.id}`);
         const { topo, meio, fundo } = extrairTemperaturas(monitoramento.temperaturas);
-        const { data, error } = await supabase.from("monitoramento_leira").upsert({
+        const { error } = await supabase.from("monitoramento_leira").upsert({
           id: monitoramento.id,
           usuario_id: USUARIO_ID,
-          // Seu ID fixo
           leiraid: monitoramento.leiraId,
           data: monitoramento.data,
           hora: monitoramento.hora || null,
+          // ✅ Agora envia números decimais (float)
           temperatura_topo: topo,
           temperatura_meio: meio,
           temperatura_fundo: fundo,
@@ -13707,59 +13704,32 @@ var handler = async (event) => {
           sincronizado_em: agora,
           criado_em: agora,
           atualizado_em: agora
-        }, {
-          onConflict: "id"
-        });
+        }, { onConflict: "id" });
         if (error) {
-          console.error(`\u274C Erro ao sincronizar monitoramento:`, error.message);
-          resultados.push({
-            id: monitoramento.id,
-            leiraId: monitoramento.leiraId,
-            status: "erro",
-            erro: error.message
-          });
+          console.error(`\u274C Erro Sync:`, error.message);
+          resultados.push({ id: monitoramento.id, status: "erro", erro: error.message });
         } else {
-          console.log(`\u2705 Monitoramento sincronizado com sucesso`);
           sincronizados++;
-          resultados.push({
-            id: monitoramento.id,
-            leiraId: monitoramento.leiraId,
-            status: "sincronizado"
-          });
+          resultados.push({ id: monitoramento.id, status: "sincronizado" });
         }
       } catch (err) {
-        console.error(`\u274C Erro ao processar monitoramento:`, err);
-        resultados.push({
-          id: monitoramento.id,
-          leiraId: monitoramento.leiraId,
-          status: "erro",
-          erro: String(err)
-        });
+        resultados.push({ id: monitoramento.id, status: "erro", erro: String(err) });
       }
     }
-    console.log(`\u2705 Sincroniza\xE7\xE3o conclu\xEDda: ${sincronizados}/${monitoramentos.length} sincronizados`);
     return {
       statusCode: 200,
       headers,
-      // <--- OBRIGATÓRIO PARA FUNCIONAR NO APP
       body: JSON.stringify({
         sucesso: true,
         sincronizados,
-        erros: resultados.filter((r) => r.status === "erro").length,
-        detalhes: resultados
+        erros: resultados.filter((r) => r.status === "erro").length
       })
     };
   } catch (error) {
-    console.error("\u274C Erro geral na sincroniza\xE7\xE3o:", error);
     return {
       statusCode: 500,
       headers,
-      // <--- OBRIGATÓRIO PARA FUNCIONAR NO APP
-      body: JSON.stringify({
-        sucesso: false,
-        erro: "Erro ao sincronizar dados",
-        detalhes: String(error)
-      })
+      body: JSON.stringify({ sucesso: false, erro: error.message })
     };
   }
 };
