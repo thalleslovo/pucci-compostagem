@@ -6,7 +6,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
 );
 
-
 const USUARIO_ID = '116609f9-53c2-4289-9a63-0174fad8148e';
 
 export const handler: Handler = async (event) => {
@@ -32,16 +31,16 @@ export const handler: Handler = async (event) => {
       let origemLeira = 'MTR';
       if (leira.tipoFormacao === 'MANUAL') origemLeira = 'PISCINAO';
 
-      // 2. Payload Exato para sua Tabela
+      // 2. Payload da LEIRA
       const payload = {
         id: leira.id,
-        usuario_id: USUARIO_ID, // Agora vai aceitar mesmo se não existir na tabela usuarios
+        usuario_id: USUARIO_ID,
         numeroleira: leira.numeroLeira,
         lote: leira.lote,
-        dataformacao: leira.dataFormacao, // Manda como string mesmo (DD/MM/YYYY)
+        dataformacao: leira.dataFormacao,
         status: leira.status,
         bagaço: leira.bagaço || 12,
-        totalbiossólido: leira.totalBiossólido || 0, // Com acento, igual ao banco
+        totalbiossólido: leira.totalBiossólido || 0,
         tipo_formacao: origemLeira,
         sincronizado: true,
         sincronizado_em: agora,
@@ -49,13 +48,46 @@ export const handler: Handler = async (event) => {
         atualizado_em: agora
       };
 
-      const { error } = await supabase
+      // 3. Salva a LEIRA na tabela principal
+      const { error: erroLeira } = await supabase
         .from("leiras_formadas")
         .upsert(payload, { onConflict: 'id' });
 
-      if (error) {
-        console.error(`❌ Erro Leira ${leira.numeroLeira}:`, error.message);
-        erros.push(error.message);
+      if (erroLeira) {
+        console.error(`❌ Erro Leira ${leira.numeroLeira}:`, erroLeira.message);
+        erros.push(erroLeira.message);
+        continue; // Se falhar a leira, não tenta salvar os MTRs
+      }
+
+      // ============================================================
+      // 4. NOVO: Salva os MTRs (Biossólidos) vinculados
+      // ============================================================
+      const listaMTRs = leira.biossólidos || [];
+
+      if (listaMTRs.length > 0) {
+        // Primeiro: Limpa MTRs antigos dessa leira para evitar duplicidade
+        await supabase.from("leira_mtrs").delete().eq("leira_id", leira.id);
+
+        // Prepara os dados para inserção
+        const mtrsParaInserir = listaMTRs.map((item: any) => ({
+          leira_id: leira.id, // Vincula com a leira
+          numero_mtr: item.numeroMTR || item.mtr || 'S/N',
+          peso: parseFloat(item.peso) || 0,
+          origem: item.origem || null,
+          tipo_material: item.tipoMaterial || 'Biossólido',
+          criado_em: agora
+        }));
+
+        // Insere na tabela nova
+        const { error: erroMTR } = await supabase
+          .from("leira_mtrs")
+          .insert(mtrsParaInserir);
+
+        if (erroMTR) {
+          console.error(`⚠️ Erro ao salvar MTRs da leira ${leira.numeroLeira}:`, erroMTR.message);
+        } else {
+          console.log(`✅ ${mtrsParaInserir.length} MTRs salvos para a Leira ${leira.numeroLeira}`);
+        }
       }
     }
 

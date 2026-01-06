@@ -13649,25 +13649,42 @@ var handler = async (event) => {
       const payload = {
         id: leira.id,
         usuario_id: USUARIO_ID,
-        // Agora vai aceitar mesmo se não existir na tabela usuarios
         numeroleira: leira.numeroLeira,
         lote: leira.lote,
         dataformacao: leira.dataFormacao,
-        // Manda como string mesmo (DD/MM/YYYY)
         status: leira.status,
         baga\u00E7o: leira.baga\u00E7o || 12,
         totalbioss\u00F3lido: leira.totalBioss\u00F3lido || 0,
-        // Com acento, igual ao banco
         tipo_formacao: origemLeira,
         sincronizado: true,
         sincronizado_em: agora,
         criado_em: agora,
         atualizado_em: agora
       };
-      const { error } = await supabase.from("leiras_formadas").upsert(payload, { onConflict: "id" });
-      if (error) {
-        console.error(`\u274C Erro Leira ${leira.numeroLeira}:`, error.message);
-        erros.push(error.message);
+      const { error: erroLeira } = await supabase.from("leiras_formadas").upsert(payload, { onConflict: "id" });
+      if (erroLeira) {
+        console.error(`\u274C Erro Leira ${leira.numeroLeira}:`, erroLeira.message);
+        erros.push(erroLeira.message);
+        continue;
+      }
+      const listaMTRs = leira.bioss\u00F3lidos || [];
+      if (listaMTRs.length > 0) {
+        await supabase.from("leira_mtrs").delete().eq("leira_id", leira.id);
+        const mtrsParaInserir = listaMTRs.map((item) => ({
+          leira_id: leira.id,
+          // Vincula com a leira
+          numero_mtr: item.numeroMTR || item.mtr || "S/N",
+          peso: parseFloat(item.peso) || 0,
+          origem: item.origem || null,
+          tipo_material: item.tipoMaterial || "Bioss\xF3lido",
+          criado_em: agora
+        }));
+        const { error: erroMTR } = await supabase.from("leira_mtrs").insert(mtrsParaInserir);
+        if (erroMTR) {
+          console.error(`\u26A0\uFE0F Erro ao salvar MTRs da leira ${leira.numeroLeira}:`, erroMTR.message);
+        } else {
+          console.log(`\u2705 ${mtrsParaInserir.length} MTRs salvos para a Leira ${leira.numeroLeira}`);
+        }
       }
     }
     if (erros.length > 0) {
