@@ -48,7 +48,7 @@ export const handler: Handler = async (event) => {
         atualizado_em: agora
       };
 
-      // 3. Salva a LEIRA na tabela principal
+      // 3. Salva a LEIRA
       const { error: erroLeira } = await supabase
         .from("leiras_formadas")
         .upsert(payload, { onConflict: 'id' });
@@ -56,37 +56,37 @@ export const handler: Handler = async (event) => {
       if (erroLeira) {
         console.error(`❌ Erro Leira ${leira.numeroLeira}:`, erroLeira.message);
         erros.push(erroLeira.message);
-        continue; // Se falhar a leira, não tenta salvar os MTRs
+        continue;
       }
 
       // ============================================================
-      // 4. NOVO: Salva os MTRs (Biossólidos) vinculados
+      // 4. CORREÇÃO AQUI: Aceita qualquer nome que vier do App
       // ============================================================
-      const listaMTRs = leira.biossólidos || [];
+      const listaMTRs = leira.biossólidos || leira.biossolidos || leira.mtrs || [];
+
+      console.log(`🧐 Leira ${leira.numeroLeira}: Encontrados ${listaMTRs.length} MTRs para salvar.`);
 
       if (listaMTRs.length > 0) {
-        // Primeiro: Limpa MTRs antigos dessa leira para evitar duplicidade
+        // Limpa antigos
         await supabase.from("leira_mtrs").delete().eq("leira_id", leira.id);
 
-        // Prepara os dados para inserção
         const mtrsParaInserir = listaMTRs.map((item: any) => ({
-          leira_id: leira.id, // Vincula com a leira
-          numero_mtr: item.numeroMTR || item.mtr || 'S/N',
+          leira_id: leira.id,
+          numero_mtr: item.numeroMTR || item.mtr || item.numero || 'S/N',
           peso: parseFloat(item.peso) || 0,
           origem: item.origem || null,
           tipo_material: item.tipoMaterial || 'Biossólido',
           criado_em: agora
         }));
 
-        // Insere na tabela nova
         const { error: erroMTR } = await supabase
           .from("leira_mtrs")
           .insert(mtrsParaInserir);
 
         if (erroMTR) {
-          console.error(`⚠️ Erro ao salvar MTRs da leira ${leira.numeroLeira}:`, erroMTR.message);
+          console.error(`⚠️ Erro MTR:`, erroMTR.message);
         } else {
-          console.log(`✅ ${mtrsParaInserir.length} MTRs salvos para a Leira ${leira.numeroLeira}`);
+          console.log(`✅ Sucesso: MTRs salvos.`);
         }
       }
     }

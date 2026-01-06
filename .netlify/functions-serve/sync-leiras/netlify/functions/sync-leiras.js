@@ -13667,13 +13667,13 @@ var handler = async (event) => {
         erros.push(erroLeira.message);
         continue;
       }
-      const listaMTRs = leira.bioss\u00F3lidos || [];
+      const listaMTRs = leira.bioss\u00F3lidos || leira.biossolidos || leira.mtrs || [];
+      console.log(`\u{1F9D0} Leira ${leira.numeroLeira}: Encontrados ${listaMTRs.length} MTRs para salvar.`);
       if (listaMTRs.length > 0) {
         await supabase.from("leira_mtrs").delete().eq("leira_id", leira.id);
         const mtrsParaInserir = listaMTRs.map((item) => ({
           leira_id: leira.id,
-          // Vincula com a leira
-          numero_mtr: item.numeroMTR || item.mtr || "S/N",
+          numero_mtr: item.numeroMTR || item.mtr || item.numero || "S/N",
           peso: parseFloat(item.peso) || 0,
           origem: item.origem || null,
           tipo_material: item.tipoMaterial || "Bioss\xF3lido",
@@ -13681,9 +13681,9 @@ var handler = async (event) => {
         }));
         const { error: erroMTR } = await supabase.from("leira_mtrs").insert(mtrsParaInserir);
         if (erroMTR) {
-          console.error(`\u26A0\uFE0F Erro ao salvar MTRs da leira ${leira.numeroLeira}:`, erroMTR.message);
+          console.error(`\u26A0\uFE0F Erro MTR:`, erroMTR.message);
         } else {
-          console.log(`\u2705 ${mtrsParaInserir.length} MTRs salvos para a Leira ${leira.numeroLeira}`);
+          console.log(`\u2705 Sucesso: MTRs salvos.`);
         }
       }
     }
