@@ -34,7 +34,7 @@ export const syncService = {
     }
   },
 
-  // ===== OBTER TAMANHO DA FILA (ESSENCIAL PARA O DASHBOARD) =====
+  // ===== OBTER TAMANHO DA FILA =====
   async obterTamanhoFila(): Promise<number> {
     try {
       const fila = await AsyncStorage.getItem('filaSync') || '[]';
@@ -51,10 +51,11 @@ export const syncService = {
       const fila = await AsyncStorage.getItem('filaSync') || '[]';
       const filaArray: SyncQueue[] = JSON.parse(fila);
 
+      // Adiciona timestamp para garantir ordem
       filaArray.push({ tipo, dados, timestamp: Date.now(), tentativas: 0 });
 
       await AsyncStorage.setItem('filaSync', JSON.stringify(filaArray));
-      console.log(`📝 Adicionado à fila: ${tipo}`);
+      console.log(`📝 Adicionado à fila: ${tipo} (ID: ${dados.id || '?'})`);
 
       const temInternet = await this.verificarInternet();
       if (temInternet) {
@@ -81,9 +82,16 @@ export const syncService = {
 
       console.log(`🔄 Sincronizando ${filaArray.length} itens...`);
 
-      // Agrupamento
+      // 🔥 CORREÇÃO CRÍTICA AQUI:
+      // Garantimos que o campo 'deletado' seja preservado explicitamente
       const grupos = {
-        material: filaArray.filter(f => f.tipo === 'material').map(f => f.dados),
+        material: filaArray
+          .filter(f => f.tipo === 'material')
+          .map(f => ({
+            ...f.dados,
+            deletado: f.dados.deletado === true // Força o booleano
+          })),
+        
         leira: filaArray.filter(f => f.tipo === 'leira').map(f => f.dados),
         monitoramento: filaArray.filter(f => f.tipo === 'monitoramento').map(f => f.dados),
         clima: filaArray.filter(f => f.tipo === 'clima').map(f => f.dados),
@@ -95,7 +103,10 @@ export const syncService = {
       let erros = 0;
 
       // Execução Sequencial
-      if (grupos.material.length) await this.sincronizarGenerico('sync-materiais', { materiais: grupos.material }, operador).catch(() => erros++);
+      if (grupos.material.length) {
+        await this.sincronizarGenerico('sync-materiais', { materiais: grupos.material }, operador).catch(() => erros++);
+      }
+      
       if (grupos.leira.length) await this.sincronizarGenerico('sync-leiras', { leiras: grupos.leira }, operador).catch(() => erros++);
       if (grupos.monitoramento.length) await this.sincronizarGenerico('sync-monitoramento', { monitoramentos: grupos.monitoramento }, operador).catch(() => erros++);
       
@@ -106,7 +117,7 @@ export const syncService = {
 
       if (grupos.enriquecimento.length) await this.sincronizarGenerico('sync-enriquecimento', { enriquecimentos: grupos.enriquecimento }, operador).catch(() => erros++);
 
-      // DELEÇÕES
+      // DELEÇÕES ESPECÍFICAS (Leiras e Clima usam rota separada, Materiais usam a rota principal acima)
       if (grupos.leira_deletada.length) await this.sincronizarDelecoes('leiras', grupos.leira_deletada, operador).catch(() => erros++);
       if (grupos.clima_deletado.length) await this.sincronizarDelecoes('clima', grupos.clima_deletado, operador).catch(() => erros++);
 
@@ -115,11 +126,11 @@ export const syncService = {
         console.log('✅ Sincronização concluída - Fila limpa');
         return true;
       } else {
-        console.log(`⚠️ Sincronização parcial (${erros} erros)`);
+        console.log(`⚠️ Sincronização parcial (${erros} erros) - Mantendo fila para tentar depois`);
         return false;
       }
     } catch (error) {
-      console.error('❌ Erro geral:', error);
+      console.error('❌ Erro geral no sync:', error);
       return false;
     }
   },
@@ -127,15 +138,26 @@ export const syncService = {
   // ===== FUNÇÃO GENÉRICA DE ENVIO =====
   async sincronizarGenerico(endpoint: string, body: any, operador: any): Promise<void> {
     const netlifyUrl = process.env.EXPO_PUBLIC_NETLIFY_URL || 'http://localhost:9999';
+    
+    // 🕵️ DEBUG: Espião para ver o que está saindo (Olhe no terminal do Expo)
+    if (endpoint === 'sync-materiais') {
+        console.log(`🚀 [ENVIO] ${endpoint}:`, JSON.stringify(body, null, 2));
+    }
+
     const response = await fetch(`${netlifyUrl}/.netlify/functions/${endpoint}`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...body, operadorId: operador.id, operadorNome: operador.nome }),
     });
-    if (!response.ok) throw new Error(`Erro ${response.status} em ${endpoint}`);
+
+    if (!response.ok) {
+        const textoErro = await response.text();
+        console.error(`❌ ERRO SERVIDOR [${endpoint}]:`, textoErro);
+        throw new Error(`Erro ${response.status} em ${endpoint}`);
+    }
   },
 
-  // ===== FUNÇÃO DE DELEÇÃO (VERSÃO FINAL PROFISSIONAL) =====
+  // ===== FUNÇÃO DE DELEÇÃO (Para Leiras e Clima) =====
   async sincronizarDelecoes(tabela: string, itens: any[], operador: any): Promise<void> {
     try {
       const netlifyUrl = process.env.EXPO_PUBLIC_NETLIFY_URL || 'http://localhost:9999';
@@ -155,13 +177,11 @@ export const syncService = {
       try {
         result = JSON.parse(responseText);
       } catch (e) {
-        // Se não for JSON, loga o aviso mas não trava o app
         console.warn(`⚠️ Resposta inválida do servidor ao deletar: ${responseText}`);
         return; 
       }
 
       if (!response.ok) {
-        // Se o servidor recusou, loga o erro mas remove da fila para não travar
         console.warn(`⚠️ Erro no servidor: ${result.erro || result.message}`);
         return;
       }
@@ -170,7 +190,6 @@ export const syncService = {
 
     } catch (error) {
       console.error(`❌ Erro de conexão ao deletar ${tabela}:`, error);
-      // Se for erro de rede, joga o erro para tentar depois
       if (String(error).includes('Network request failed')) {
         throw error;
       }
