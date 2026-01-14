@@ -6,7 +6,6 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InhwY3h1b25xZmZld3RzbXdsYXRvIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc2NDkzNDU3MywiZXhwIjoyMDgwNTEwNTczfQ.CV9ccsDAX4ZJzFOG79GhE4aP-6CRTz64_Uwz0nHPCtE"
 );
 
-
 interface Material {
   id: string;
   data: string;
@@ -14,7 +13,8 @@ interface Material {
   numeroMTR: string;
   peso: number;
   origem: string;
-  destino?: string; 
+  destino?: string;
+  deletado?: boolean; // ✅ Novo campo para saber se é exclusão
 }
 
 const USUARIO_ID = '116609f9-53c2-4289-9a63-0174fad8148e'; 
@@ -34,19 +34,41 @@ export const handler: Handler = async (event) => {
     const materiais: Material[] = body.materiais || [];
 
     // ===== ESPIÃO DE DEBUG =====
-    // Isso vai aparecer no log do Netlify quando você sincronizar
     if (materiais.length > 0) {
-        console.log("🕵️ DEBUG - Verificando primeiro item:");
-        console.log("Tipo:", materiais[0].tipoMaterial);
-        console.log("Destino recebido:", materiais[0].destino); 
+        console.log(`🕵️ DEBUG - Processando ${materiais.length} itens.`);
+        console.log("Primeiro item deletado?", materiais[0].deletado);
     }
     // ===========================
 
     const agora = new Date().toISOString();
     let sincronizados = 0;
+    let deletados = 0;
 
     for (const material of materiais) {
-        // Lógica de segurança: Se não vier nada, assume patio
+        
+        // 🚨 CENÁRIO 1: EXCLUSÃO
+        if (material.deletado === true) {
+            // Opção A: Hard Delete (Remove do banco pra sempre)
+            const { error } = await supabase
+                .from("materiais_registrados")
+                .delete()
+                .eq('id', material.id); // Deleta onde o ID bate
+            
+            if (!error) deletados++;
+            
+            // Opção B (Alternativa): Soft Delete (Só marca como inativo)
+            // Se preferir manter histórico, descomente abaixo e comente o bloco acima:
+            /*
+            const { error } = await supabase
+                .from("materiais_registrados")
+                .update({ deletado: true, atualizado_em: agora })
+                .eq('id', material.id);
+            */
+            
+            continue; // Pula para o próximo item, não faz upsert
+        }
+
+        // 💾 CENÁRIO 2: CRIAÇÃO OU EDIÇÃO (UPSERT)
         const destinoFinal = material.destino || 'patio';
 
         const { error } = await supabase
@@ -59,14 +81,14 @@ export const handler: Handler = async (event) => {
             numeromtr: material.numeroMTR || null,
             peso: material.peso,
             origem: material.origem,
+            destino: destinoFinal,
             
-            destino: destinoFinal, // ✅ Usa o valor definido acima
-
+            // Campos de controle
             sincronizado: true,
             sincronizado_em: agora,
-            criado_em: agora, 
+            // criado_em: NÃO ATUALIZAR (deixe o banco manter o original se já existir)
             atualizado_em: agora,
-          }, { onConflict: 'id' });
+          }, { onConflict: 'id' }); // Se o ID já existe, ele ATUALIZA. Se não, CRIA.
 
         if (!error) sincronizados++;
     }
@@ -74,10 +96,16 @@ export const handler: Handler = async (event) => {
     return {
       statusCode: 200,
       headers,
-      body: JSON.stringify({ sucesso: true, sincronizados }),
+      body: JSON.stringify({ 
+          sucesso: true, 
+          sincronizados, 
+          deletados,
+          mensagem: `Processado: ${sincronizados} salvos, ${deletados} excluídos.`
+      }),
     };
+
   } catch (error: any) {
-    console.error("Erro:", error);
+    console.error("Erro Geral:", error);
     return { statusCode: 500, headers, body: JSON.stringify({ erro: error.message }) };
   }
 };
